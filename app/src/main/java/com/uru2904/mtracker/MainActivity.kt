@@ -1,6 +1,15 @@
 package com.uru2904.mtracker
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.MutableState
+import com.uru2904.mtracker.data.AppDatabase
+import com.uru2904.mtracker.gym.HevyImporter
+import java.time.Instant
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -44,10 +53,29 @@ private val Card = Color(0xFF111111)
 private val Muted = Color(0xFF8A8A8A)
 
 class MainActivity : ComponentActivity() {
+    private val sharedUri: MutableState<Uri?> = mutableStateOf(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val health = HealthRepository(this)
-        setContent { HealthCheckScreen(health) }
+        val db = AppDatabase.get(this)
+        handleIntent(intent)
+        setContent { HealthCheckScreen(health, db, sharedUri) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND) return
+        val uri = if (Build.VERSION.SDK_INT >= 33) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        }
+        sharedUri.value = uri
     }
 }
 
@@ -58,8 +86,30 @@ private data class HealthData(
 )
 
 @Composable
-private fun HealthCheckScreen(health: HealthRepository) {
+private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableState<Uri?>) {
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var importMsg by remember { mutableStateOf<String?>(null) }
+    val lastWorkout by db.workouts().last().collectAsState(initial = null)
+
+    suspend fun importUri(uri: Uri) {
+        importMsg = try {
+            val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                ?: error("No se pudo abrir el archivo")
+            val r = HevyImporter(db).import(text)
+            "Hevy: ${r.added} sesiones nuevas, ${r.skipped} ya estaban."
+        } catch (e: Exception) {
+            "No se pudo importar: ${e.message}"
+        }
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch { importUri(uri) }
+    }
+
+    LaunchedEffect(sharedUri.value) {
+        sharedUri.value?.let { importUri(it); sharedUri.value = null }
+    }
     var granted by remember { mutableStateOf<Set<String>?>(null) }
     var data by remember { mutableStateOf<HealthData?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -142,6 +192,21 @@ private fun HealthCheckScreen(health: HealthRepository) {
         }
 
         error?.let { Box("Error al leer Health Connect", it) }
+
+        val fmtDay = DateTimeFormatter.ofPattern("EEE d/M", Locale("es", "AR"))
+        Box(
+            "Último gym (Hevy)",
+            lastWorkout?.let { it.routine } ?: "Sin datos todavía",
+            lastWorkout?.let {
+                fmtDay.format(Instant.ofEpochMilli(it.start).atZone(ZoneId.systemDefault())) + " · ${it.durationMin} min"
+            },
+        )
+        importMsg?.let { Box(it) }
+        Button(
+            onClick = { picker.launch(arrayOf("text/*", "application/csv", "application/octet-stream")) },
+            colors = ButtonDefaults.buttonColors(containerColor = Accent),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Importar CSV de Hevy", color = Color.White) }
 
         Button(
             onClick = { scope.launch { refresh() } },
