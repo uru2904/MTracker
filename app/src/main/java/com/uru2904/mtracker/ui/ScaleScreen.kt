@@ -62,8 +62,6 @@ fun ScaleScreen(db: AppDatabase) {
     var live by remember { mutableStateOf<ScaleReading?>(null) }
     var status by remember { mutableStateOf("Subite a la balanza") }
     var scanning by remember { mutableStateOf(false) }
-    var lastSavedKg by remember { mutableStateOf<Double?>(null) }
-    var lastSavedAt by remember { mutableStateOf(0L) }
     val raw = remember { mutableStateListOf<String>() }
     var showRaw by remember { mutableStateOf(false) }
     var weighed by remember { mutableStateOf<WeightEntry?>(null) }
@@ -72,15 +70,31 @@ fun ScaleScreen(db: AppDatabase) {
     val perms = if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN)
     else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
 
-    fun save(r: ScaleReading) {
+    // Bloqueo: después de guardar una pesada no se ofrece otra por 3 horas (evita lecturas accidentales).
+    val prefs = remember { context.getSharedPreferences("scale", android.content.Context.MODE_PRIVATE) }
+    var lockUntil by remember { mutableStateOf(prefs.getLong("lock_until", 0L)) }
+    var pending by remember { mutableStateOf<ScaleReading?>(null) }
+    var dismissedKg by remember { mutableStateOf<Double?>(null) }
+    var toDelete by remember { mutableStateOf<WeightEntry?>(null) }
+    val locked = System.currentTimeMillis() < lockUntil
+
+    /** Lectura estable: no se guarda sola, se ofrece para confirmar. */
+    fun offer(r: ScaleReading) {
+        if (r.kg < 20) return // toque con la mano u objeto: se ignora
+        if (System.currentTimeMillis() < lockUntil) return
+        if (dismissedKg == r.kg) return
+        pending = r
+    }
+
+    fun confirm(r: ScaleReading) {
         val now = System.currentTimeMillis()
-        // Una sola vez por pesada: ignora repeticiones del mismo valor dentro de 2 minutos.
-        if (lastSavedKg == r.kg && now - lastSavedAt < 120_000) return
-        lastSavedKg = r.kg; lastSavedAt = now
+        pending = null
+        lockUntil = now + 3 * 3_600_000L
+        prefs.edit().putLong("lock_until", lockUntil).apply()
         scope.launch {
             val entry = WeightEntry(timestamp = now, kg = r.kg, source = "balanza")
             db.weights().insert(entry)
-            val hc = runCatching { health.writeWeight(r.kg) }.isSuccess
+            val hc = runCatching { health.writeWeight(r.kg, Instant.ofEpochMilli(now)) }.isSuccess
             status = "Guardado: ${num(r.kg)} kg" + if (hc) " (también en Health Connect)" else ""
             weighed = entry // abre el checklist: composición y medidas
         }
@@ -93,7 +107,7 @@ fun ScaleScreen(db: AppDatabase) {
                 live = r
                 when {
                     r.removed -> status = "Te bajaste de la balanza"
-                    r.stabilized -> save(r)
+                    r.stabilized -> offer(r)
                     else -> status = "Midiendo…"
                 }
             },
@@ -129,6 +143,44 @@ fun ScaleScreen(db: AppDatabase) {
             if (!scanning) Text("Buscando la balanza…", color = Muted, fontSize = 12.sp)
         }
 
+        pending?.let { r ->
+            Column(
+                Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("¿Guardar ${num(r.kg)} kg?", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = { dismissedKg = r.kg; pending = null; status = "Descartado" },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A)),
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Descartar", color = Color.White) }
+                    Button(
+                        onClick = { confirm(r) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Guardar", color = Color.White) }
+                }
+            }
+        }
+
+        if (locked) Row(
+            Modifier.fillMaxWidth().background(Color(0xFF0B0B0B), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Pesaje registrado. Bloqueado hasta las " +
+                    DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(lockUntil).atZone(ZoneId.systemDefault())),
+                color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f),
+            )
+            Text(
+                "Desbloquear", color = AccentLight, fontSize = 13.sp,
+                modifier = Modifier.clickable {
+                    lockUntil = 0L; prefs.edit().putLong("lock_until", 0L).apply(); dismissedKg = null
+                }.padding(start = 10.dp),
+            )
+        }
+
         if (!scanning) Button(
             onClick = { launcher.launch(perms) },
             colors = ButtonDefaults.buttonColors(containerColor = Accent),
@@ -140,9 +192,11 @@ fun ScaleScreen(db: AppDatabase) {
         Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(12.dp))) {
             recent.reversed().take(10).forEachIndexed { i, w ->
                 if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Color(0xFF1F1F1F)))
-                Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(fmt.format(Instant.ofEpochMilli(w.timestamp).atZone(ZoneId.systemDefault())), color = Soft, fontSize = 14.sp)
-                    Text("${num(w.kg)} kg", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                SwipeToDelete(onDelete = { toDelete = w }) {
+                    Row(Modifier.fillMaxWidth().background(Card).padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(fmt.format(Instant.ofEpochMilli(w.timestamp).atZone(ZoneId.systemDefault())), color = Soft, fontSize = 14.sp)
+                        Text("${num(w.kg)} kg", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
             if (recent.isEmpty()) Text("Todavía no hay pesadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(14.dp))
@@ -158,4 +212,18 @@ fun ScaleScreen(db: AppDatabase) {
     }
 
     weighed?.let { w -> WeighInDialog(db, w) { weighed = null } }
+
+    toDelete?.let { w ->
+        ConfirmDialog(
+            title = "¿Borrar esta pesada?",
+            text = "${num(w.kg)} kg se borra de la app y de Health Connect.",
+            onConfirm = {
+                scope.launch {
+                    db.weights().delete(w)
+                    runCatching { health.deleteWeight(Instant.ofEpochMilli(w.timestamp)) }
+                }
+            },
+            onDismiss = { toDelete = null },
+        )
+    }
 }

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MonitorWeight
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -148,4 +149,27 @@ fun RefreshBox(refreshing: Boolean, onRefresh: () -> Unit, content: @Composable 
             content()
         }
     }
+}
+
+
+/** Fila que se desliza hacia la izquierda para borrar (vuelve a su lugar; el borrado lo confirma un diálogo). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
+        confirmValueChange = {
+            if (it == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) onDelete()
+            false
+        },
+    )
+    androidx.compose.material3.SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            Row(
+                Modifier.fillMaxSize().background(Color(0xFF3A1212)).padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically,
+            ) { Icon(androidx.compose.material.icons.Icons.Outlined.Delete, contentDescription = "Borrar", tint = Color(0xFFF87171)) }
+        },
+    ) { content() }
 }

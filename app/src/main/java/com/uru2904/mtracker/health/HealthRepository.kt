@@ -147,6 +147,11 @@ class HealthRepository(private val context: Context) {
         )
     }
 
+    /** Borra de Health Connect el peso que guardó la app en ese momento (solo puede borrar los suyos). */
+    suspend fun deleteWeight(at: Instant) {
+        client.deleteRecords(WeightRecord::class, TimeRangeFilter.between(at.minusSeconds(5), at.plusSeconds(5)))
+    }
+
     /** Resumen de cada uno de los últimos [days] días (incluye hoy). */
     suspend fun dailySummaries(days: Int = 14): List<DailySummary> =
         (0 until days).map { LocalDate.now().minusDays(it.toLong()) }.map { day(it) }

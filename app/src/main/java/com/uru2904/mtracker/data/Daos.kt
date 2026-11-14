@@ -107,6 +107,7 @@ interface WorkoutDao {
 @Dao
 interface WeightDao {
     @Insert suspend fun insert(w: WeightEntry): Long
+    @Delete suspend fun delete(w: WeightEntry)
 
     @Query("SELECT * FROM weight ORDER BY timestamp DESC LIMIT 1")
     fun latest(): Flow<WeightEntry?>
