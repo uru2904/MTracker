@@ -64,6 +64,16 @@ class HealthRepository(private val context: Context) {
         HealthPermission.getReadPermission(androidx.health.connect.client.records.BoneMassRecord::class),
     )
 
+    /** Permiso para leer Health Connect cuando la app no está abierta (Android 15+). */
+    val backgroundPermission = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
+
+    /** true si este teléfono soporta (y por lo tanto necesita) el permiso de lectura en segundo plano. */
+    fun backgroundReadSupported(): Boolean = runCatching {
+        client.features.getFeatureStatus(
+            androidx.health.connect.client.HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND
+        ) == androidx.health.connect.client.HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+    }.getOrDefault(false)
+
     /** Permiso mínimo para el resumen diario (los demás se leen si están). */
     val stepsPermission = HealthPermission.getReadPermission(StepsRecord::class)
 

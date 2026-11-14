@@ -52,8 +52,8 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         .setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/drive.file")))
         .build()
 
-    suspend fun authorize(activity: Activity): AuthStep {
-        val result = Identity.getAuthorizationClient(activity).authorize(request).await()
+    suspend fun authorize(ctx: Context): AuthStep {
+        val result = Identity.getAuthorizationClient(ctx).authorize(request).await()
         val pending = result.pendingIntent
         return if (result.hasResolution() && pending != null) AuthStep.NeedsConsent(pending)
         else AuthStep.Token(result.accessToken ?: error("Google no devolvió acceso"))
@@ -164,7 +164,7 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
     }
 
     /** Sincroniza sin mostrar nada si Google ya dio permiso; si hace falta consentimiento, no hace nada. */
-    suspend fun syncSilently(activity: Activity, health: com.uru2904.mtracker.health.HealthRepository): Boolean =
+    suspend fun syncSilently(activity: Context, health: com.uru2904.mtracker.health.HealthRepository): Boolean =
         runCatching {
             if (sheetId == null) return false
             when (val st = authorize(activity)) {

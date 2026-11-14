@@ -70,6 +70,7 @@ class MainActivity : ComponentActivity() {
         val health = HealthRepository(this)
         val db = AppDatabase.get(this)
         handleIntent(intent)
+        com.uru2904.mtracker.sync.SyncWorker.schedule(this)
         lifecycleScope.launch {
             FoodSeed.ensure(db)
             runCatching { FoodSeed.loadArgenfood(db, this@MainActivity) }
@@ -210,17 +211,47 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
             return@Column
         }
 
-        val missing = granted?.let { health.permissions - it }.orEmpty()
+        val required = remember {
+            if (health.backgroundReadSupported()) health.permissions + health.backgroundPermission else health.permissions
+        }
+        val missing = granted?.let { required - it }.orEmpty()
         if (granted == null || missing.isNotEmpty()) {
             InfoCard(
                 if (granted.isNullOrEmpty()) "Falta dar permisos de Health Connect."
                 else "Faltan ${missing.size} permisos de Health Connect."
             )
             Button(
-                onClick = { launcher.launch(health.permissions) },
+                onClick = { launcher.launch(required) },
                 colors = ButtonDefaults.buttonColors(containerColor = Accent),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Conectar Health Connect", color = Color.White) }
+        }
+
+        // Optimización de batería: si Samsung la restringe, la sincronización en segundo plano se corta.
+        val power = remember { context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager }
+        var batteryOk by remember { mutableStateOf(power.isIgnoringBatteryOptimizations(context.packageName)) }
+        androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+            batteryOk = power.isIgnoringBatteryOptimizations(context.packageName)
+            onPauseOrDispose { }
+        }
+        if (!batteryOk) {
+            InfoCard(
+                "Sincronización en segundo plano",
+                null,
+                "Para que la app suba tus datos cada 2 horas aunque no la abras, hay que sacarla de la optimización de batería.",
+            )
+            Button(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                                .setData(android.net.Uri.parse("package:" + context.packageName))
+                        )
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Permitir en segundo plano", color = Color.White) }
         }
 
         data?.let { d ->
