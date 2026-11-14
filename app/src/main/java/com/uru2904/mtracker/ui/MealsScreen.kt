@@ -66,6 +66,7 @@ fun MealsScreen(db: AppDatabase) {
     val totals by db.meals().totals(key).collectAsState(initial = DayTotals(0.0, 0.0, 0.0, 0.0))
     val goal by db.goals().activeOn(today.toString()).collectAsState(initial = null)
     var adding by remember { mutableStateOf(false) }
+    var showFoods by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val kcalT = goal?.kcalTarget ?: 2250
@@ -137,7 +138,14 @@ fun MealsScreen(db: AppDatabase) {
             colors = ButtonDefaults.buttonColors(containerColor = Accent),
             modifier = Modifier.fillMaxWidth().height(52.dp),
         ) { Text("+ Agregar comida", color = Color.White, fontSize = 16.sp) }
+        Button(
+            onClick = { showFoods = true },
+            colors = ButtonDefaults.buttonColors(containerColor = Card),
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+        ) { Text("Mis alimentos", color = Color.White, fontSize = 15.sp) }
     }
+
+    if (showFoods) FoodsDialog(db) { showFoods = false }
 
     if (adding) {
         AddMealDialog(
@@ -304,7 +312,8 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                 ) {
                     Text("Alimento nuevo (queda guardado para la próxima)", color = Soft, fontSize = 13.sp)
                     field(mName, "Nombre", { mName = it })
-                    field(mPortion, "Porción (ej: 1 plato, 100 g)", { mPortion = it })
+                    field(mPortion, "Porción (ej: 1 plato, 1 vaso)", { mPortion = it })
+                    PortionChips { mPortion = it }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         field(mKcal, "kcal", { mKcal = it }, true, Modifier.weight(1f))
                         field(mProt, "Proteína g", { mProt = it }, true, Modifier.weight(1f))
@@ -375,4 +384,137 @@ private fun defaultType(): String = when (LocalTime.now().hour) {
     in 15..18 -> "Merienda"
     in 19..23 -> "Cena"
     else -> "Snack"
+}
+
+
+private val PortionPresets = listOf("1 unidad", "1 vaso", "1 taza", "1 plato", "1 cucharada", "100 g")
+
+/** Unidades caseras para cargar porciones sin pesar. */
+@Composable
+private fun PortionChips(onPick: (String) -> Unit) {
+    PortionPresets.chunked(3).forEach { row ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            row.forEach { p ->
+                Text(
+                    p, color = Soft, fontSize = 13.sp,
+                    modifier = Modifier.weight(1f)
+                        .background(Color(0xFF1A1A1A), RoundedCornerShape(8.dp))
+                        .clickable { onPick(p) }
+                        .padding(vertical = 8.dp, horizontal = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Lista de todos los alimentos de la base, con búsqueda, edición y borrado. */
+@Composable
+private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
+    val all by db.foods().all().collectAsState(initial = emptyList())
+    var filter by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf<FoodItem?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    val shown = all.filter { filter.isBlank() || it.name.contains(filter.trim(), ignoreCase = true) }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Mis alimentos (${all.size})", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Cerrar", color = AccentLight, fontSize = 15.sp, modifier = Modifier.clickable { onDismiss() }.padding(8.dp))
+            }
+            field(filter, "Filtrar", { filter = it })
+            Button(
+                onClick = { creating = true },
+                colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("+ Nuevo alimento", color = Color.White) }
+            shown.forEach { f ->
+                Column(
+                    Modifier.fillMaxWidth().background(Card, RoundedCornerShape(10.dp))
+                        .clickable { editing = f }
+                        .padding(12.dp)
+                ) {
+                    Text(f.name, color = Color.White, fontSize = 15.sp)
+                    Text(
+                        "${f.portion} · ${f.kcal.toInt()} kcal · P ${num(f.protein)} · C ${num(f.carbs)} · G ${num(f.fat)}",
+                        color = Muted, fontSize = 12.sp,
+                    )
+                }
+            }
+            if (shown.isEmpty()) Text("No hay alimentos que coincidan.", color = Muted, fontSize = 14.sp)
+        }
+    }
+
+    editing?.let { f -> FoodEditor(db, f) { editing = null } }
+    if (creating) FoodEditor(db, null) { creating = false }
+}
+
+/** Editor de un alimento: crear (initial = null), modificar o borrar. */
+@Composable
+private fun FoodEditor(db: AppDatabase, initial: FoodItem?, onClose: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var name by remember { mutableStateOf(initial?.name ?: "") }
+    var portion by remember { mutableStateOf(initial?.portion ?: "") }
+    var kcal by remember { mutableStateOf(initial?.kcal?.let { num(it) } ?: "") }
+    var prot by remember { mutableStateOf(initial?.protein?.let { num(it) } ?: "") }
+    var carbs by remember { mutableStateOf(initial?.carbs?.let { num(it) } ?: "") }
+    var fat by remember { mutableStateOf(initial?.fat?.let { num(it) } ?: "") }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(if (initial == null) "Nuevo alimento" else "Editar alimento", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            field(name, "Nombre", { name = it })
+            field(portion, "Porción (ej: 1 vaso, 1 plato)", { portion = it })
+            PortionChips { portion = it }
+            Text("Valores por porción", color = Muted, fontSize = 13.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                field(kcal, "kcal", { kcal = it }, true, Modifier.weight(1f))
+                field(prot, "Proteína g", { prot = it }, true, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                field(carbs, "Carbos g", { carbs = it }, true, Modifier.weight(1f))
+                field(fat, "Grasas g", { fat = it }, true, Modifier.weight(1f))
+            }
+            val ok = name.isNotBlank() && parse(kcal) != null
+            Button(
+                onClick = {
+                    val item = FoodItem(
+                        id = initial?.id ?: 0, name = name.trim(), portion = portion.ifBlank { "1 porción" },
+                        kcal = parse(kcal) ?: 0.0, protein = parse(prot) ?: 0.0,
+                        carbs = parse(carbs) ?: 0.0, fat = parse(fat) ?: 0.0,
+                        source = initial?.source ?: "propio",
+                    )
+                    scope.launch {
+                        if (initial == null) db.foods().insert(item) else db.foods().update(item)
+                        onClose()
+                    }
+                },
+                enabled = ok,
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) { Text(if (ok) "Guardar" else "Falta nombre y kcal", color = if (ok) Color.White else Muted) }
+            Button(
+                onClick = onClose,
+                colors = ButtonDefaults.buttonColors(containerColor = Card),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Cancelar", color = Color.White) }
+            if (initial != null) {
+                Text(
+                    if (confirmDelete) "Tocá de nuevo para confirmar el borrado" else "Borrar alimento",
+                    color = Color(0xFFF87171), fontSize = 15.sp,
+                    modifier = Modifier.clickable {
+                        if (confirmDelete) scope.launch { db.foods().delete(initial); onClose() } else confirmDelete = true
+                    }.padding(vertical = 10.dp),
+                )
+                Text("Borrar un alimento no cambia las comidas que ya cargaste con él.", color = Muted, fontSize = 12.sp)
+            }
+        }
+    }
 }

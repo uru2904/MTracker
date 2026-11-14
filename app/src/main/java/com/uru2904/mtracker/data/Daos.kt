@@ -34,6 +34,15 @@ interface FoodDao {
     @Query("SELECT COUNT(*) FROM food")
     suspend fun count(): Int
 
+    @Update suspend fun update(item: FoodItem)
+    @Delete suspend fun delete(item: FoodItem)
+
+    @Query("SELECT * FROM food ORDER BY name COLLATE NOCASE")
+    fun all(): Flow<List<FoodItem>>
+
+    @Query("SELECT * FROM food WHERE name = :name AND portion = :portion LIMIT 1")
+    suspend fun find(name: String, portion: String): FoodItem?
+
     @Query("SELECT * FROM food WHERE name LIKE '%' || :q || '%' ORDER BY source = 'propio' DESC, name LIMIT 50")
     suspend fun search(q: String): List<FoodItem>
 }
