@@ -13,6 +13,12 @@ KNOWN = ["Cereales", "Vegetales", "Pescados", "Carnes", "Leches", "Huevos", "Fru
 NUM = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
 def find_pdfs():
+    for extra in ("Varios/indice1.htm", "Varios/arriba.htm"):
+        try:
+            h = requests.get(BASE + extra, timeout=30)
+            print("INDEX", extra, h.status_code, re.sub(r"\s+", " ", h.text)[:3000])
+        except Exception as e:
+            print("INDEX ERROR", extra, e)
     seen, pdfs, pages = set(), set(), [BASE]
     for depth in range(3):
         nxt = []
@@ -25,7 +31,7 @@ def find_pdfs():
                 print("WARN", url, e); continue
             for href in re.findall(r'(?:href|src)=["\']([^"\']+)["\']', html, re.I):
                 full = urljoin(url, href)
-                if "argenfood" not in full: continue
+                if "argenfood" not in full.lower(): continue
                 if full.lower().endswith(".pdf"): pdfs.add(full)
                 elif re.search(r"\.(htm|html|php)$", full, re.I) or full.endswith("/"): nxt.append(full)
         pages = nxt
