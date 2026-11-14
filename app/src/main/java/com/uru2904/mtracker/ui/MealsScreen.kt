@@ -289,7 +289,12 @@ private data class Item(
     val name: String, val portion: String,
     val kcal: Double, val protein: Double, val carbs: Double, val fat: Double,
     val qty: Double = 1.0,
+    /** ARGENFOOD: valores cada 100 g y la cantidad se carga en gramos (qty = gramos / 100). */
+    val grams: Boolean = false,
 )
+
+private fun itemOf(f: FoodItem) =
+    Item(f.name, f.portion, f.kcal, f.protein, f.carbs, f.fat, qty = 1.0, grams = f.source == "argenfood")
 
 /** Busca por cada palabra de 3+ letras y ordena por cuántas palabras coinciden. */
 private suspend fun searchFoods(db: AppDatabase, q: String): List<FoodItem> {
@@ -355,26 +360,52 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(it.name, color = Color.White, fontSize = 15.sp)
-                        Text("${num(it.qty)} × ${it.portion} · ${(it.kcal * it.qty).toInt()} kcal · P ${num(it.protein * it.qty)}", color = Muted, fontSize = 12.sp)
+                        val amount = if (it.grams) "${num(it.qty * 100)} g" else "${num(it.qty)} × ${it.portion}"
+                        Text("$amount · ${(it.kcal * it.qty).toInt()} kcal · P ${num(it.protein * it.qty)}", color = Muted, fontSize = 12.sp)
                     }
-                    Text("−", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable {
-                        if (it.qty <= 0.5) items.removeAt(idx) else items[idx] = it.copy(qty = it.qty - 0.5)
-                    }.padding(horizontal = 12.dp, vertical = 4.dp))
-                    Text("+", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable {
-                        items[idx] = it.copy(qty = it.qty + 0.5)
-                    }.padding(horizontal = 12.dp, vertical = 4.dp))
+                    if (it.grams) {
+                        // ARGENFOOD: gramos (pesados en crudo)
+                        var g by remember(idx, it.name) { mutableStateOf(num(it.qty * 100)) }
+                        OutlinedTextField(
+                            value = g,
+                            onValueChange = { v ->
+                                g = v
+                                parse(v)?.let { grams -> items[idx] = it.copy(qty = grams / 100.0) }
+                            },
+                            suffix = { Text("g", color = Muted) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                                focusedBorderColor = AccentLight, unfocusedBorderColor = Muted, cursorColor = Color.White,
+                            ),
+                            modifier = Modifier.width(96.dp),
+                        )
+                        Icon(
+                            Icons.Outlined.Delete, contentDescription = "Quitar", tint = Muted,
+                            modifier = Modifier.padding(start = 8.dp).size(22.dp).clickable { items.removeAt(idx) },
+                        )
+                    } else {
+                        Text("−", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable {
+                            if (it.qty <= 0.5) items.removeAt(idx) else items[idx] = it.copy(qty = it.qty - 0.5)
+                        }.padding(horizontal = 12.dp, vertical = 4.dp))
+                        Text("+", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable {
+                            items[idx] = it.copy(qty = it.qty + 0.5)
+                        }.padding(horizontal = 12.dp, vertical = 4.dp))
+                    }
                 }
             }
 
             // Buscador estilo MacroFactor: fijados arriba, tocar suma a la comida, mantener apretado = menú
             field(query, "Buscar alimento (ej: huevo, pan, leche)", { query = it })
-            val shownFoods = if (query.isBlank()) allFoods.take(40) else results.sortedByDescending { it.pinned }.take(15)
+            val shownFoods = if (query.isBlank()) allFoods.filter { it.source != "argenfood" || it.pinned }.take(40)
+                else results.sortedWith(compareByDescending<FoodItem> { it.pinned }.thenByDescending { it.source != "argenfood" }).take(20)
             if (query.isBlank() && allFoods.none { it.pinned }) {
                 Text("Tip: mantené apretado un alimento para fijarlo arriba.", color = Muted, fontSize = 12.sp)
             }
             if (shownFoods.isNotEmpty()) FoodList(
                 db = db, foods = shownFoods,
-                onTap = { f -> items.add(Item(f.name, f.portion, f.kcal, f.protein, f.carbs, f.fat)); query = "" },
+                onTap = { f -> items.add(itemOf(f)); query = "" },
                 showAdd = true,
                 onEdit = { editingFood = it },
                 onDelete = null,
@@ -442,7 +473,13 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                 ) { Text("Cancelar", color = Color.White) }
                 Button(
                     onClick = {
-                        val desc = items.joinToString(" + ") { if (it.qty == 1.0) it.name else "${num(it.qty)} ${it.name}" }
+                        val desc = items.joinToString(" + ") {
+                            when {
+                                it.grams -> "${num(it.qty * 100)} g ${it.name}"
+                                it.qty == 1.0 -> it.name
+                                else -> "${num(it.qty)} ${it.name}"
+                            }
+                        }
                         onSave(
                             MealEntry(
                                 timestamp = 0, logicalDate = "", mealType = type, description = desc,
@@ -501,7 +538,8 @@ private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<FoodItem?>(null) }
     val scope = rememberCoroutineScope()
-    val shown = all.filter { filter.isBlank() || it.name.contains(filter.trim(), ignoreCase = true) }
+    val shown = all.filter { it.source != "argenfood" || it.pinned }
+        .filter { filter.isBlank() || it.name.contains(filter.trim(), ignoreCase = true) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
@@ -509,7 +547,7 @@ private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Mis alimentos (${all.size})", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Mis alimentos (${shown.size})", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text("Cerrar", color = AccentLight, fontSize = 15.sp, modifier = Modifier.clickable { onDismiss() }.padding(8.dp))
             }
             field(filter, "Filtrar", { filter = it })
@@ -708,7 +746,11 @@ private fun FoodList(
                     )
                     Column(Modifier.weight(1f)) {
                         Text(f.name, color = Color.White, fontSize = 15.sp)
-                        Text("${f.portion} · ${f.kcal.toInt()} kcal · P ${num(f.protein)}", color = Muted, fontSize = 12.sp)
+                        Text(
+                            (if (f.source == "argenfood") "ARGENFOOD · cada 100 g" else f.portion) +
+                                " · ${f.kcal.toInt()} kcal · P ${num(f.protein)}",
+                            color = Muted, fontSize = 12.sp,
+                        )
                     }
                     if (showAdd) Icon(
                         androidx.compose.material.icons.Icons.Outlined.AddCircle, contentDescription = "Sumar",

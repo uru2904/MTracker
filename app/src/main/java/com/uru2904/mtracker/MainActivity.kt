@@ -70,7 +70,10 @@ class MainActivity : ComponentActivity() {
         val health = HealthRepository(this)
         val db = AppDatabase.get(this)
         handleIntent(intent)
-        lifecycleScope.launch { FoodSeed.ensure(db) }
+        lifecycleScope.launch {
+            FoodSeed.ensure(db)
+            runCatching { FoodSeed.loadArgenfood(db, this@MainActivity) }
+        }
         setContent {
             var tab by remember { mutableStateOf(Tab.Hoy) }
             LaunchedEffect(sharedUri.value) { if (sharedUri.value != null) tab = Tab.Hoy }

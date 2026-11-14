@@ -11,6 +11,31 @@ object FoodSeed {
         FoodItem(name = "Huevo", portion = "1 unidad", kcal = 72.0, protein = 6.3, carbs = 0.4, fat = 4.8, source = "propio"),
     )
 
+    /**
+     * Carga la tabla ARGENFOOD (assets/argenfood.json, generada al compilar) cuando cambia.
+     * Valores cada 100 g. Se conservan los alimentos de ARGENFOOD que fijaste.
+     */
+    suspend fun loadArgenfood(db: AppDatabase, context: android.content.Context) {
+        val text = runCatching { context.assets.open("argenfood.json").bufferedReader().use { it.readText() } }.getOrNull() ?: return
+        val prefs = context.getSharedPreferences("foods", android.content.Context.MODE_PRIVATE)
+        val version = text.hashCode()
+        if (prefs.getInt("argenfood_version", 0) == version) return
+        val arr = org.json.JSONArray(text)
+        db.foods().deleteUnpinnedBySource("argenfood")
+        val kept = db.foods().namesBySource("argenfood").toSet()
+        val items = (0 until arr.length()).map { arr.getJSONObject(it) }
+            .filter { it.getString("name") !in kept }
+            .map {
+                FoodItem(
+                    name = it.getString("name"), portion = "100 g",
+                    kcal = it.getDouble("kcal"), protein = it.getDouble("p"),
+                    carbs = it.getDouble("c"), fat = it.getDouble("f"), source = "argenfood",
+                )
+            }
+        db.foods().insertAll(items)
+        prefs.edit().putInt("argenfood_version", version).apply()
+    }
+
     suspend fun ensure(db: AppDatabase) {
         if (db.foods().count() == 0) {
             db.foods().insertAll(items)

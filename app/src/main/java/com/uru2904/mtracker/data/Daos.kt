@@ -54,6 +54,12 @@ interface FoodDao {
     @Query("SELECT COUNT(*) FROM food")
     suspend fun count(): Int
 
+    @Query("DELETE FROM food WHERE source = :source AND pinned = 0")
+    suspend fun deleteUnpinnedBySource(source: String)
+
+    @Query("SELECT name FROM food WHERE source = :source")
+    suspend fun namesBySource(source: String): List<String>
+
     @Update suspend fun update(item: FoodItem)
     @Delete suspend fun delete(item: FoodItem)
 
