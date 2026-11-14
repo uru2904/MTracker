@@ -13,8 +13,10 @@ android {
         applicationId = "com.uru2904.mtracker"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Cada build de GitHub Actions lleva su número: 0.1.<build>
+        val build = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInt()
+        versionCode = build + 1
+        versionName = "0.1.$build"
     }
 
     val releaseKeystore = file("release.jks")

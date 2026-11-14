@@ -27,6 +27,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -175,7 +176,13 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
         val today = LocalDate.now()
         val shift = calendar.shiftForWeekOf(today)
         val sleepWin = calendar.expectedSleep(today)
-        Text("MTracker", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        val version = remember {
+            runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: ""
+        }
+        Row(verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
+            Text("MTracker", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("  v$version", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp))
+        }
         Text(
             "Turno de la semana: ${shift.name} · Sueño esperado ${sleepWin.start}–${sleepWin.end}",
             color = Muted, fontSize = 13.sp,

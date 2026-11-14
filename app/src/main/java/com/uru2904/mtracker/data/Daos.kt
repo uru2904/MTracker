@@ -57,7 +57,7 @@ interface FoodDao {
     @Update suspend fun update(item: FoodItem)
     @Delete suspend fun delete(item: FoodItem)
 
-    @Query("SELECT * FROM food ORDER BY name COLLATE NOCASE")
+    @Query("SELECT * FROM food ORDER BY pinned DESC, name COLLATE NOCASE")
     fun all(): Flow<List<FoodItem>>
 
     @Query("SELECT * FROM food WHERE name = :name AND portion = :portion LIMIT 1")

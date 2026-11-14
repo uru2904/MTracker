@@ -2,6 +2,11 @@ package com.uru2904.mtracker.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.AddCircle
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -311,6 +316,8 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
     var drinks by remember { mutableStateOf("") }
 
     LaunchedEffect(query) { results = searchFoods(db, query) }
+    val allFoods by db.foods().all().collectAsState(initial = emptyList())
+    var editingFood by remember { mutableStateOf<FoodItem?>(null) }
 
     val tKcal = items.sumOf { it.kcal * it.qty }
     val tProt = items.sumOf { it.protein * it.qty }
@@ -359,21 +366,19 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                 }
             }
 
-            // Buscador
+            // Buscador estilo MacroFactor: fijados arriba, tocar suma a la comida, mantener apretado = menú
             field(query, "Buscar alimento (ej: huevo, pan, leche)", { query = it })
-            results.take(6).forEach { f ->
-                Column(
-                    Modifier.fillMaxWidth().background(Card, RoundedCornerShape(10.dp))
-                        .clickable {
-                            items.add(Item(f.name, f.portion, f.kcal, f.protein, f.carbs, f.fat))
-                            query = ""
-                        }
-                        .padding(12.dp)
-                ) {
-                    Text("+ ${f.name}", color = Color.White, fontSize = 15.sp)
-                    Text("${f.portion} · ${f.kcal.toInt()} kcal · P ${num(f.protein)}", color = Muted, fontSize = 12.sp)
-                }
+            val shownFoods = if (query.isBlank()) allFoods.take(40) else results.sortedByDescending { it.pinned }.take(15)
+            if (query.isBlank() && allFoods.none { it.pinned }) {
+                Text("Tip: mantené apretado un alimento para fijarlo arriba.", color = Muted, fontSize = 12.sp)
             }
+            if (shownFoods.isNotEmpty()) FoodList(
+                db = db, foods = shownFoods,
+                onTap = { f -> items.add(Item(f.name, f.portion, f.kcal, f.protein, f.carbs, f.fat)); query = "" },
+                showAdd = true,
+                onEdit = { editingFood = it },
+                onDelete = null,
+            )
             if (query.trim().length >= 3 && results.isEmpty()) {
                 Text("No está en tus alimentos. Cargalo a mano abajo.", color = Muted, fontSize = 13.sp)
             }
@@ -454,6 +459,7 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
             }
         }
     }
+    editingFood?.let { f -> FoodEditor(db, f) { editingFood = null } }
 }
 
 /** Tipo de comida sugerido según la hora. */
@@ -493,6 +499,8 @@ private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
     var filter by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<FoodItem?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<FoodItem?>(null) }
+    val scope = rememberCoroutineScope()
     val shown = all.filter { filter.isBlank() || it.name.contains(filter.trim(), ignoreCase = true) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -510,24 +518,26 @@ private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = Accent),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("+ Nuevo alimento", color = Color.White) }
-            shown.forEach { f ->
-                Column(
-                    Modifier.fillMaxWidth().background(Card, RoundedCornerShape(10.dp))
-                        .clickable { editing = f }
-                        .padding(12.dp)
-                ) {
-                    Text(f.name, color = Color.White, fontSize = 15.sp)
-                    Text(
-                        "${f.portion} · ${f.kcal.toInt()} kcal · P ${num(f.protein)} · C ${num(f.carbs)} · G ${num(f.fat)}",
-                        color = Muted, fontSize = 12.sp,
-                    )
-                }
-            }
+            if (shown.isNotEmpty()) FoodList(
+                db = db, foods = shown,
+                onTap = { editing = it },
+                showAdd = false,
+                onEdit = { editing = it },
+                onDelete = { deleting = it },
+            )
             if (shown.isEmpty()) Text("No hay alimentos que coincidan.", color = Muted, fontSize = 14.sp)
         }
     }
 
     editing?.let { f -> FoodEditor(db, f) { editing = null } }
+    deleting?.let { f ->
+        ConfirmDialog(
+            title = "¿Borrar este alimento?",
+            text = "\"${f.name}\" se borra de tus alimentos.",
+            onConfirm = { scope.launch { db.foods().delete(f) } },
+            onDismiss = { deleting = null },
+        )
+    }
     if (creating) FoodEditor(db, null) { creating = false }
 }
 
@@ -661,6 +671,71 @@ private fun MacroBar(p: Double, c: Double, f: Double) {
     Row(Modifier.fillMaxWidth().height(4.dp)) {
         listOf(kp to ProtColor, kc to CarbColor, kf to FatColor).forEach { (v, col) ->
             if (v > 0) Box(Modifier.weight((v / total).toFloat()).fillMaxHeight().background(col))
+        }
+    }
+}
+
+
+/**
+ * Lista de alimentos (estilo MacroFactor). Los fijados van arriba con un pin.
+ * Tocar = acción principal; mantener apretado = menú con Fijar/Desfijar, Editar y Borrar.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun FoodList(
+    db: AppDatabase,
+    foods: List<FoodItem>,
+    onTap: (FoodItem) -> Unit,
+    showAdd: Boolean,
+    onEdit: (FoodItem) -> Unit,
+    onDelete: ((FoodItem) -> Unit)?,
+) {
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(12.dp))) {
+        foods.forEachIndexed { idx, f ->
+            if (idx > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+            var menu by remember(f.id) { mutableStateOf(false) }
+            Box {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .combinedClickable(onClick = { onTap(f) }, onLongClick = { menu = true })
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (f.pinned) Icon(
+                        androidx.compose.material.icons.Icons.Filled.PushPin, contentDescription = "Fijado",
+                        tint = AccentLight, modifier = Modifier.padding(end = 8.dp).size(16.dp),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(f.name, color = Color.White, fontSize = 15.sp)
+                        Text("${f.portion} · ${f.kcal.toInt()} kcal · P ${num(f.protein)}", color = Muted, fontSize = 12.sp)
+                    }
+                    if (showAdd) Icon(
+                        androidx.compose.material.icons.Icons.Outlined.AddCircle, contentDescription = "Sumar",
+                        tint = AccentLight, modifier = Modifier.size(26.dp),
+                    )
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = menu, onDismissRequest = { menu = false },
+                    containerColor = Color(0xFF1A1A1A),
+                ) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(if (f.pinned) "Desfijar" else "Fijar", color = Color.White) },
+                        leadingIcon = { Icon(androidx.compose.material.icons.Icons.Outlined.PushPin, null, tint = Soft) },
+                        onClick = { menu = false; scope.launch { db.foods().update(f.copy(pinned = !f.pinned)) } },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Editar", color = Color.White) },
+                        leadingIcon = { Icon(androidx.compose.material.icons.Icons.Outlined.Edit, null, tint = Soft) },
+                        onClick = { menu = false; onEdit(f) },
+                    )
+                    if (onDelete != null) androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Borrar", color = Color(0xFFF87171)) },
+                        leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = Color(0xFFF87171)) },
+                        onClick = { menu = false; onDelete(f) },
+                    )
+                }
+            }
         }
     }
 }
