@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
 
 private data class HealthData(
     val steps: Long,
+    val stepSources: List<String>,
     val sleep: SleepSummary,
     val exercises: List<String>,
 )
@@ -123,6 +124,7 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
                 val fmt = DateTimeFormatter.ofPattern("EEE d/M HH:mm", Locale("es", "AR"))
                 data = HealthData(
                     steps = health.stepsToday(),
+                    stepSources = health.stepsBySourceToday(),
                     sleep = health.sleepLast24h(),
                     exercises = health.recentExercises().take(5).map {
                         val start = it.startTime.atZone(ZoneId.systemDefault())
@@ -179,7 +181,11 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
         }
 
         data?.let { d ->
-            Box("Pasos hoy", "%,d".format(Locale("es", "AR"), d.steps))
+            Box(
+                "Pasos hoy",
+                "%,d".format(Locale("es", "AR"), d.steps),
+                d.stepSources.joinToString("\n").ifEmpty { "Sin datos por origen" },
+            )
             Box(
                 "Sueño últimas 24 h",
                 hm(d.sleep.total),

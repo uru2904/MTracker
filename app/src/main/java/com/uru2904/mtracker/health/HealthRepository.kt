@@ -61,6 +61,19 @@ class HealthRepository(private val context: Context) {
         return result[StepsRecord.COUNT_TOTAL] ?: 0L
     }
 
+    /** Diagnóstico: pasos de hoy por app de origen y hora del último dato de cada una. */
+    suspend fun stepsBySourceToday(): List<String> {
+        val start = LocalDate.now().atStartOfDay(zone).toInstant()
+        val records = client.readRecords(
+            ReadRecordsRequest(StepsRecord::class, TimeRangeFilter.between(start, Instant.now()))
+        ).records
+        val fmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+        return records.groupBy { it.metadata.dataOrigin.packageName }.map { (pkg, recs) ->
+            val last = recs.maxOf { it.endTime }.atZone(zone)
+            "$pkg: ${recs.sumOf { it.count }} pasos (último dato ${fmt.format(last)})"
+        }
+    }
+
     /** Sueño que terminó en las últimas 24 h. La sesión más larga es el sueño principal; el resto, siesta. */
     suspend fun sleepLast24h(): SleepSummary {
         val sessions = client.readRecords(
