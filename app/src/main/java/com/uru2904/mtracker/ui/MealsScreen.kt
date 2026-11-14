@@ -189,7 +189,9 @@ fun MealsScreen(db: AppDatabase) {
         Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
             meals.forEachIndexed { idx, m ->
                 if (idx > 0) Box(Modifier.fillMaxWidth().padding(start = 64.dp).height(1.dp).background(Color(0xFF1F1F1F)))
-                MealRow(m, timeFmt.format(Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()))) { toDelete = m }
+                androidx.compose.runtime.key(m.id, m.remoteId) {
+                    MealRow(m, timeFmt.format(Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()))) { toDelete = m }
+                }
             }
         }
         if (meals.isEmpty()) Text("Sin comidas cargadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp))
@@ -662,9 +664,10 @@ private val FatColor = Color(0xFFE879A6)
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun MealRow(m: MealEntry, time: String, onDelete: () -> Unit) {
+    val current by androidx.compose.runtime.rememberUpdatedState(onDelete)
     val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
         confirmValueChange = {
-            if (it == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) onDelete()
+            if (it == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) current()
             false // vuelve a su lugar; el borrado lo confirma el diálogo
         },
     )

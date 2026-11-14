@@ -156,9 +156,11 @@ fun RefreshBox(refreshing: Boolean, onRefresh: () -> Unit, content: @Composable 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    // Siempre la acción de la fila actual (si no, después de borrar una, la de abajo apunta a la borrada).
+    val current by androidx.compose.runtime.rememberUpdatedState(onDelete)
     val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
         confirmValueChange = {
-            if (it == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) onDelete()
+            if (it == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) current()
             false
         },
     )

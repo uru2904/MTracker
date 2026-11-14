@@ -65,7 +65,8 @@ fun ScaleScreen(db: AppDatabase) {
     val raw = remember { mutableStateListOf<String>() }
     var showRaw by remember { mutableStateOf(false) }
     var weighed by remember { mutableStateOf<WeightEntry?>(null) }
-    val recent by db.weights().since(System.currentTimeMillis() - 30L * 86_400_000).collectAsState(initial = emptyList())
+    val since = remember { System.currentTimeMillis() - 30L * 86_400_000 }
+    val recent by db.weights().since(since).collectAsState(initial = emptyList())
 
     val perms = if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN)
     else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -100,9 +101,13 @@ fun ScaleScreen(db: AppDatabase) {
         }
     }
 
+    var signals by remember { mutableStateOf(0) }
+    var scanError by remember { mutableStateOf<String?>(null) }
+
     fun startScan() {
-        if (!scanner.bluetoothOn) { status = "Prendé el Bluetooth del celular"; return }
-        scanner.start(
+        if (!scanner.bluetoothOn) { status = "Prendé el Bluetooth del celular"; scanning = false; return }
+        scanError = null
+        val err = scanner.start(
             onReading = { r ->
                 live = r
                 when {
@@ -112,8 +117,11 @@ fun ScaleScreen(db: AppDatabase) {
                 }
             },
             onRaw = { line -> if (raw.size > 30) raw.removeAt(0); raw.add(line) },
+            onAny = { signals++ },
+            onError = { msg -> scanError = msg; scanning = false },
         )
-        scanning = true
+        scanError = err
+        scanning = err == null
     }
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
@@ -140,7 +148,14 @@ fun ScaleScreen(db: AppDatabase) {
                 fontSize = 52.sp, fontWeight = FontWeight.Bold,
             )
             Text(status, color = Muted, fontSize = 14.sp)
-            if (!scanning) Text("Buscando la balanza…", color = Muted, fontSize = 12.sp)
+            Text(
+                when {
+                    scanError != null -> scanError!!
+                    scanning -> "Escuchando · $signals señales Bluetooth"
+                    else -> "Sin escuchar"
+                },
+                color = if (scanError != null) Color(0xFFF2C14E) else Muted, fontSize = 12.sp,
+            )
         }
 
         pending?.let { r ->
@@ -181,16 +196,16 @@ fun ScaleScreen(db: AppDatabase) {
             )
         }
 
-        if (!scanning) Button(
+        Button(
             onClick = { launcher.launch(perms) },
-            colors = ButtonDefaults.buttonColors(containerColor = Accent),
+            colors = ButtonDefaults.buttonColors(containerColor = if (scanning) Color(0xFF1A1A1A) else Accent),
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Empezar a escuchar la balanza", color = Color.White) }
+        ) { Text("Reiniciar escucha", color = Color.White) }
 
         Text("Últimos 30 días", color = Muted, fontSize = 13.sp)
         val fmt = DateTimeFormatter.ofPattern("EEE d/M HH:mm", Locale("es", "AR"))
         Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(12.dp))) {
-            recent.reversed().take(10).forEachIndexed { i, w ->
+            recent.reversed().take(10).forEachIndexed { i, w -> androidx.compose.runtime.key(w.id) {
                 if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Color(0xFF1F1F1F)))
                 SwipeToDelete(onDelete = { toDelete = w }) {
                     Row(Modifier.fillMaxWidth().background(Card).padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -198,6 +213,7 @@ fun ScaleScreen(db: AppDatabase) {
                         Text("${num(w.kg)} kg", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
+            }
             }
             if (recent.isEmpty()) Text("Todavía no hay pesadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(14.dp))
         }
