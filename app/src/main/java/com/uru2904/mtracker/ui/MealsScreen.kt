@@ -127,16 +127,9 @@ fun MealsScreen(db: AppDatabase) {
     val fatT = goal?.fatTarget ?: 65
     val drinks = meals.sumOf { it.drinks ?: 0.0 }
 
-    RefreshBox(refreshing = syncing, onRefresh = { scope.launch { doSync(interactive = true) } }) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    // El encabezado queda fijo; al deslizar para actualizar solo baja la lista.
+    Column(Modifier.fillMaxSize().background(Color.Black)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("‹", color = Soft, fontSize = 28.sp, modifier = Modifier.clickable { date = date.minusDays(1) }.padding(12.dp))
             Text(
                 if (date == today) "Hoy" else DateTimeFormatter.ofPattern("EEE d MMM", es).format(date),
@@ -147,6 +140,16 @@ fun MealsScreen(db: AppDatabase) {
                 modifier = Modifier.clickable(enabled = date < today) { date = date.plusDays(1) }.padding(12.dp),
             )
         }
+
+        RefreshBox(refreshing = syncing, onRefresh = { scope.launch { doSync(interactive = true) } }) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
 
         if (sync.sheetId == null || syncMsg != null) Row(
             Modifier.fillMaxWidth().background(Color(0xFF1A1205), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
@@ -195,6 +198,7 @@ fun MealsScreen(db: AppDatabase) {
             colors = ButtonDefaults.buttonColors(containerColor = Card),
             modifier = Modifier.fillMaxWidth().height(48.dp),
         ) { Text("Mis alimentos", color = Color.White, fontSize = 15.sp) }
+    }
     }
     }
 

@@ -169,6 +169,18 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
     LaunchedEffect(Unit) { if (available) refresh() }
     var refreshing by remember { mutableStateOf(false) }
 
+    // El encabezado queda fijo; al deslizar para actualizar solo bajan las tarjetas.
+    Column(Modifier.fillMaxSize().background(Color.Black)) {
+    Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 8.dp)) {
+        val today = LocalDate.now()
+        val shift = calendar.shiftForWeekOf(today)
+        val sleepWin = calendar.expectedSleep(today)
+        Text("MTracker", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "Turno de la semana: ${shift.name} · Sueño esperado ${sleepWin.start}–${sleepWin.end}",
+            color = Muted, fontSize = 13.sp,
+        )
+    }
     com.uru2904.mtracker.ui.RefreshBox(
         refreshing = refreshing,
         onRefresh = { scope.launch { refreshing = true; refresh(); refreshing = false } },
@@ -178,17 +190,9 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
             .fillMaxSize()
             .background(Color.Black)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        val today = LocalDate.now()
-        val shift = calendar.shiftForWeekOf(today)
-        val sleepWin = calendar.expectedSleep(today)
-        Text("MTracker", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text(
-            "Turno de la semana: ${shift.name} · Sueño esperado ${sleepWin.start}–${sleepWin.end}",
-            color = Muted, fontSize = 13.sp,
-        )
 
         if (!available) {
             InfoCard("Health Connect no está disponible en este teléfono.")
@@ -238,6 +242,7 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Importar CSV de Hevy", color = Color.White) }
 
+    }
     }
     }
 }
