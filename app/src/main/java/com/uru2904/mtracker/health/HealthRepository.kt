@@ -53,25 +53,18 @@ class HealthRepository(private val context: Context) {
     suspend fun grantedPermissions(): Set<String> =
         client.permissionController.getGrantedPermissions()
 
+    /**
+     * Pasos del día. Se pide el día completo (00:00 a 00:00) porque Samsung Health guarda
+     * un registro que cubre todo el día; con un rango parcial, Health Connect lo prorratea.
+     */
     suspend fun stepsToday(): Long {
-        val start = LocalDate.now().atStartOfDay(zone).toInstant()
+        val today = LocalDate.now()
+        val start = today.atStartOfDay(zone).toInstant()
+        val end = today.plusDays(1).atStartOfDay(zone).toInstant()
         val result = client.aggregate(
-            AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(start, Instant.now()))
+            AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(start, end))
         )
         return result[StepsRecord.COUNT_TOTAL] ?: 0L
-    }
-
-    /** Diagnóstico: pasos de hoy por app de origen y hora del último dato de cada una. */
-    suspend fun stepsBySourceToday(): List<String> {
-        val start = LocalDate.now().atStartOfDay(zone).toInstant()
-        val records = client.readRecords(
-            ReadRecordsRequest(StepsRecord::class, TimeRangeFilter.between(start, Instant.now()))
-        ).records
-        val fmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-        return records.groupBy { it.metadata.dataOrigin.packageName }.map { (pkg, recs) ->
-            val last = recs.maxOf { it.endTime }.atZone(zone)
-            "$pkg: ${recs.sumOf { it.count }} pasos (último dato ${fmt.format(last)})"
-        }
     }
 
     /** Sueño que terminó en las últimas 24 h. La sesión más larga es el sueño principal; el resto, siesta. */
