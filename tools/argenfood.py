@@ -13,15 +13,8 @@ KNOWN = ["Cereales", "Vegetales", "Pescados", "Carnes", "Leches", "Huevos", "Fru
 NUM = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
 def find_pdfs():
-    # Diagnóstico: estructura del sitio
-    try:
-        html = requests.get(BASE, timeout=30).text
-        print("HOME", re.sub(r"\s+", " ", html)[:2500])
-        for src in re.findall(r'(?:src|href)=["\']([^"\']+)["\']', html, re.I): print("LINK", src)
-    except Exception as e:
-        print("HOME ERROR", e)
     seen, pdfs, pages = set(), set(), [BASE]
-    for depth in range(2):
+    for depth in range(3):
         nxt = []
         for url in pages:
             if url in seen: continue
@@ -38,12 +31,14 @@ def find_pdfs():
         pages = nxt
     for g in KNOWN:
         pdfs.add(f"{BASE}Tablas/Grupo/{g}.pdf")
-    return sorted(p for p in pdfs if "/Tablas/Grupo/" in p)
+    found = sorted(pdfs)
+    print("PDFS", found)
+    return found
 
 def num(s):
     return float(s.replace(",", "."))
 
-TAGS = {"PROTCNT": "p", "FAT": "f", "CHOCDF": "ct", "CHOAVLDF": "cd", "WATER": "agua", "FIBTG": "fibra"}
+TAGS = {"PROTCNT": "p", "FAT": "f", "CHOCDF": "ct", "CHO": "ct", "CHOAVLDF": "cd", "WATER": "agua", "FIBTG": "fibra"}
 
 def parse_pdf(data, group):
     """Usa la fila de códigos INFOODS (<ENERC>, <PROTCNT>, <FAT>, ...) para ubicar cada columna.
@@ -54,17 +49,22 @@ def parse_pdf(data, group):
             words = page.extract_words()
             cols, tag_bottom, enerc = {}, None, 0
             for w in words:
-                for m in re.findall(r"<?([A-Z]+)>?", w["text"]):
-                    if not w["text"].strip().startswith(("<", ">")): continue
+                t = w["text"].strip()
+                if not t.startswith(("<", ">")): continue
+                tags = re.findall(r"[A-Z]+", t)
+                n = len(tags)
+                for k, m in enumerate(tags):
+                    # Palabras con dos códigos pegados (<WATER><PROTCNT>): se reparte el ancho.
+                    x1 = w["x0"] + (w["x1"] - w["x0"]) * (k + 1) / n
                     key = None
                     if m == "ENERC":
                         key = "kj" if enerc == 0 else "kcal"; enerc += 1
                     elif m in TAGS:
                         key = TAGS[m]
                     if key and key not in cols:
-                        cols[key] = w["x1"]
+                        cols[key] = x1
                         tag_bottom = max(tag_bottom or 0, w["bottom"])
-            if not {"kcal", "p", "f"} <= cols.keys():
+            if not {"kcal", "f"} <= cols.keys():
                 continue
             name_limit = cols.get("kj", cols["kcal"]) - 30
             lines = {}
@@ -82,9 +82,9 @@ def parse_pdf(data, group):
                 vals = {}
                 for w in nums:
                     k = min(cols, key=lambda c: abs(cols[c] - w["x1"]))
-                    if abs(cols[k] - w["x1"]) <= 15: vals.setdefault(k, num(w["text"]))
-                if not {"kcal", "p", "f"} <= vals.keys(): continue
-                kcal, p, f = vals["kcal"], vals["p"], vals["f"]
+                    if abs(cols[k] - w["x1"]) <= 20: vals.setdefault(k, num(w["text"]))
+                if "kcal" not in vals: continue
+                kcal, p, f = vals["kcal"], vals.get("p", 0.0), vals.get("f", 0.0)
                 # Carbohidratos disponibles si están; si no, totales menos fibra; si no, totales.
                 if "cd" in vals: c = vals["cd"]
                 elif "ct" in vals: c = max(0.0, vals["ct"] - vals.get("fibra", 0.0))
@@ -103,13 +103,15 @@ def debug_tags(data, group):
 def main(out):
     all_foods = []
     for url in find_pdfs():
-        group = url.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        group = requests.utils.unquote(url.rsplit("/", 1)[-1].rsplit(".", 1)[0])
         try:
             r = requests.get(url, timeout=60)
             if r.status_code != 200 or not r.content.startswith(b"%PDF"):
                 print(f"SKIP {group}: {r.status_code}"); continue
             foods = parse_pdf(r.content, group)
             if not foods: debug_tags(r.content, group)
+            bad = [x for x in foods if abs(4 * x["p"] + 4 * x["c"] + 9 * x["f"] - x["kcal"]) > max(25, 0.25 * x["kcal"])]
+            for x in bad[:3]: print("    NO CIERRA", x)
         except Exception as e:
             print(f"ERROR {group}: {e}"); continue
         ok = [x for x in foods if abs(4 * x["p"] + 4 * x["c"] + 9 * x["f"] - x["kcal"]) <= max(25, 0.25 * x["kcal"])]
