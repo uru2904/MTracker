@@ -8,17 +8,11 @@ from urllib.parse import urljoin
 import requests, pdfplumber
 
 BASE = "https://www.argenfood.unlu.edu.ar/"
-KNOWN = ["Cereales", "Vegetales", "Pescados", "Carnes", "Leches", "Huevos", "Frutas",
-         "Azucares", "Grasas", "Bebidas", "Varios", "Comidas"]
+# Nombres reales de los grupos (se usan si el rastreo del sitio falla). *AG = ácidos grasos, no sirven.
+KNOWN = ["Cereales", "Vegetales", "Pescados", "Carnes", "Leche", "Huevo", "Frutas", "Grasas", "ProdAz", "Misc"]
 NUM = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
 def find_pdfs():
-    for extra in ("Tablas/Tabla.htm",):
-        try:
-            h = requests.get(BASE + extra, timeout=30)
-            print("INDEX", extra, h.status_code, " ".join(re.findall(r'(?:href|src)=["\']([^"\']+)["\']', h.text, re.I)))
-        except Exception as e:
-            print("INDEX ERROR", extra, e)
     seen, pdfs, pages = set(), set(), [BASE]
     for depth in range(6):
         nxt = []
@@ -37,7 +31,7 @@ def find_pdfs():
         pages = nxt
     for g in KNOWN:
         pdfs.add(f"{BASE}Tablas/Grupo/{g}.pdf")
-    found = sorted(pdfs)
+    found = sorted(p for p in pdfs if "/Tablas/Grupo/" in p and not p.endswith("AG.pdf"))
     print("PDFS", found)
     return found
 
@@ -92,9 +86,17 @@ def parse_pdf(data, group):
                 if "kcal" not in vals: continue
                 kcal, p, f = vals["kcal"], vals.get("p", 0.0), vals.get("f", 0.0)
                 # Carbohidratos disponibles si están; si no, totales menos fibra; si no, totales.
-                if "cd" in vals: c = vals["cd"]
-                elif "ct" in vals: c = max(0.0, vals["ct"] - vals.get("fibra", 0.0))
-                else: c = max(0.0, (kcal - 4 * p - 9 * f) / 4)
+                def closes(c): return abs(4 * p + 4 * c + 9 * f - kcal) <= max(25, 0.25 * kcal)
+                if "cd" in vals and closes(vals["cd"]): c = vals["cd"]
+                elif "ct" in vals and closes(vals["ct"] - vals.get("fibra", 0.0)): c = max(0.0, vals["ct"] - vals.get("fibra", 0.0))
+                elif "ct" in vals and closes(vals["ct"]): c = vals["ct"]
+                else:
+                    # Columnas corridas en algunos PDF: se toma el número de la fila que cierra la energía,
+                    # y si ninguno cierra, los carbohidratos por diferencia.
+                    target = max(0.0, (kcal - 4 * p - 9 * f) / 4)
+                    rest = [num(w["text"]) for w in nums]
+                    best = min(rest, key=lambda v: abs(v - target)) if rest else target
+                    c = best if closes(best) else target
                 foods.append({"name": name, "kcal": round(kcal), "p": round(p, 1), "c": round(c, 1), "f": round(f, 1), "group": group})
     return foods
 
