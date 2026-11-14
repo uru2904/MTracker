@@ -100,6 +100,19 @@ class HealthRepository(private val context: Context) {
             )
         ).records.sortedByDescending { it.startTime }
 
+    /** Guarda un peso en Health Connect (así lo ven Samsung Health y el resumen diario). */
+    suspend fun writeWeight(kg: Double, at: Instant = Instant.now()) {
+        client.insertRecords(
+            listOf(
+                WeightRecord(
+                    time = at,
+                    zoneOffset = zone.rules.getOffset(at),
+                    weight = androidx.health.connect.client.units.Mass.kilograms(kg),
+                )
+            )
+        )
+    }
+
     /** Resumen de cada uno de los últimos [days] días (incluye hoy). */
     suspend fun dailySummaries(days: Int = 14): List<DailySummary> =
         (0 until days).map { LocalDate.now().minusDays(it.toLong()) }.map { day(it) }

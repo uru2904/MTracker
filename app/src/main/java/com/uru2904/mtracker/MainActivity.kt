@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
                     when (tab) {
                         Tab.Hoy -> HealthCheckScreen(health, db, sharedUri)
                         Tab.Comidas -> MealsScreen(db)
+                        Tab.Cuerpo -> com.uru2904.mtracker.ui.ScaleScreen(db)
                         else -> InfoCard("${tab.label}: próximamente")
                     }
                 }
