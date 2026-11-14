@@ -63,5 +63,7 @@ dependencies {
     implementation("androidx.room:room-ktx:$room")
     ksp("androidx.room:room-compiler:$room")
 
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+
     testImplementation("junit:junit:4.13.2")
 }
