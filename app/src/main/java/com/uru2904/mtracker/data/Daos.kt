@@ -138,6 +138,13 @@ interface MeasurementDao {
 
     @Query("SELECT MAX(date) FROM measurement")
     suspend fun lastDate(): String?
+
+    /** Última fecha con medidas hasta [date] inclusive. */
+    @Query("SELECT MAX(date) FROM measurement WHERE date <= :date")
+    suspend fun lastDateUntil(date: String): String?
+
+    @Query("SELECT * FROM measurement WHERE date = :date")
+    suspend fun onDate(date: String): List<MeasurementEntry>
 }
 
 @Dao

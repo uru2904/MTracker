@@ -125,8 +125,13 @@ class HealthRepository(private val context: Context) {
         ).records.sortedByDescending { it.startTime }
 
     /** Última composición corporal registrada desde [since] (o null si no hay). */
-    suspend fun compositionSince(since: Instant): Composition? {
-        val range = TimeRangeFilter.after(since)
+    suspend fun compositionSince(since: Instant): Composition? = compositionIn(TimeRangeFilter.after(since))
+
+    /** Última composición corporal hasta [until] (busca hasta 1 año atrás). */
+    suspend fun compositionUntil(until: Instant): Composition? =
+        compositionIn(TimeRangeFilter.between(until.minus(Duration.ofDays(365)), until))
+
+    private suspend fun compositionIn(range: TimeRangeFilter): Composition? {
         val fat = runCatching {
             client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.BodyFatRecord::class, range)).records.maxByOrNull { it.time }
         }.getOrNull()

@@ -77,6 +77,7 @@ fun ScaleScreen(db: AppDatabase) {
     var pending by remember { mutableStateOf<ScaleReading?>(null) }
     var dismissedKg by remember { mutableStateOf<Double?>(null) }
     var toDelete by remember { mutableStateOf<WeightEntry?>(null) }
+    var detail by remember { mutableStateOf<WeightEntry?>(null) }
     val locked = System.currentTimeMillis() < lockUntil
 
     /** Lectura estable: no se guarda sola, se ofrece para confirmar. */
@@ -208,7 +209,7 @@ fun ScaleScreen(db: AppDatabase) {
             recent.reversed().take(10).forEachIndexed { i, w -> androidx.compose.runtime.key(w.id) {
                 if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Color(0xFF1F1F1F)))
                 SwipeToDelete(onDelete = { toDelete = w }) {
-                    Row(Modifier.fillMaxWidth().background(Card).padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(Modifier.fillMaxWidth().background(Card).clickable { detail = w }.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(fmt.format(Instant.ofEpochMilli(w.timestamp).atZone(ZoneId.systemDefault())), color = Soft, fontSize = 14.sp)
                         Text("${num(w.kg)} kg", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     }
@@ -228,6 +229,7 @@ fun ScaleScreen(db: AppDatabase) {
     }
 
     weighed?.let { w -> WeighInDialog(db, w) { weighed = null } }
+    detail?.let { w -> WeightDetailDialog(db, w) { detail = null } }
 
     toDelete?.let { w ->
         ConfirmDialog(
