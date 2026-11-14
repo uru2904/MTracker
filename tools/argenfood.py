@@ -13,6 +13,13 @@ KNOWN = ["Cereales", "Vegetales", "Pescados", "Carnes", "Leches", "Huevos", "Fru
 NUM = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
 def find_pdfs():
+    # Diagnóstico: estructura del sitio
+    try:
+        html = requests.get(BASE, timeout=30).text
+        print("HOME", re.sub(r"\s+", " ", html)[:2500])
+        for src in re.findall(r'(?:src|href)=["\']([^"\']+)["\']', html, re.I): print("LINK", src)
+    except Exception as e:
+        print("HOME ERROR", e)
     seen, pdfs, pages = set(), set(), [BASE]
     for depth in range(2):
         nxt = []
@@ -23,7 +30,7 @@ def find_pdfs():
                 html = requests.get(url, timeout=30).text
             except Exception as e:
                 print("WARN", url, e); continue
-            for href in re.findall(r'href=["\']([^"\']+)["\']', html, re.I):
+            for href in re.findall(r'(?:href|src)=["\']([^"\']+)["\']', html, re.I):
                 full = urljoin(url, href)
                 if "argenfood" not in full: continue
                 if full.lower().endswith(".pdf"): pdfs.add(full)
@@ -85,6 +92,14 @@ def parse_pdf(data, group):
                 foods.append({"name": name, "kcal": round(kcal), "p": round(p, 1), "c": round(c, 1), "f": round(f, 1), "group": group})
     return foods
 
+def debug_tags(data, group):
+    with pdfplumber.open(io.BytesIO(data)) as pdf:
+        ws = pdf.pages[0].extract_words()
+        tags = [(w["text"], round(w["x0"]), round(w["x1"]), round(w["top"])) for w in ws if "<" in w["text"] or ">" in w["text"]]
+        print(f"TAGS {group}", tags[:30])
+        rows = [w for w in ws if w["top"] > 100][:40]
+        print(f"ROWS {group}", [(w["text"], round(w["x0"]), round(w["x1"]), round(w["top"])) for w in rows])
+
 def main(out):
     all_foods = []
     for url in find_pdfs():
@@ -94,6 +109,7 @@ def main(out):
             if r.status_code != 200 or not r.content.startswith(b"%PDF"):
                 print(f"SKIP {group}: {r.status_code}"); continue
             foods = parse_pdf(r.content, group)
+            if not foods: debug_tags(r.content, group)
         except Exception as e:
             print(f"ERROR {group}: {e}"); continue
         ok = [x for x in foods if abs(4 * x["p"] + 4 * x["c"] + 9 * x["f"] - x["kcal"]) <= max(25, 0.25 * x["kcal"])]
