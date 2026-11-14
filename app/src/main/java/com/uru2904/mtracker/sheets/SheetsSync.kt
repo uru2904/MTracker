@@ -84,6 +84,31 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         return id
     }
 
+    /** Escribe (o actualiza por fecha) los resúmenes diarios en la pestaña Diario. */
+    suspend fun writeDaily(token: String, days: List<com.uru2904.mtracker.health.DailySummary>) {
+        val id = sheetId ?: return
+        if (days.isEmpty()) return
+        withContext(Dispatchers.IO) {
+            val existing = get(id, "Diario!A:A", token).map { it.firstOrNull().orEmpty() }
+            val now = java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+            fun row(d: com.uru2904.mtracker.health.DailySummary) = JSONArray()
+                .put(d.date.toString()).put(d.steps).put(round1(d.sleepHours)).put(round1(d.napHours))
+                .put(d.weightKg?.let { round1(it) } ?: "").put(d.restingHr ?: "").put(d.exercises).put(now)
+            val updates = JSONArray()
+            val appends = JSONArray()
+            days.sortedBy { it.date }.forEach { d ->
+                val idx = existing.indexOf(d.date.toString())
+                if (idx > 0) updates.put(JSONObject().put("range", "Diario!A${idx + 1}:H${idx + 1}").put("values", JSONArray().put(row(d))))
+                else appends.put(row(d))
+            }
+            if (updates.length() > 0) send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values:batchUpdate", token,
+                JSONObject().put("valueInputOption", "RAW").put("data", updates))
+            if (appends.length() > 0) send("POST",
+                "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Diario!A:H") + ":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",
+                token, JSONObject().put("values", appends))
+        }
+    }
+
     /** Sube lo pendiente, trae la planilla y devuelve cuántas comidas hay. */
     suspend fun sync(token: String): Int = lock.withLock {
         if (!appOwned || sheetId == null) {

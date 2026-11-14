@@ -86,12 +86,22 @@ fun MealsScreen(db: AppDatabase) {
     // Sincronización con la planilla (buzón del chat)
     val context = LocalContext.current
     val sync = remember { SheetsSync(context, db) }
+    val health = remember { com.uru2904.mtracker.health.HealthRepository(context) }
+    suspend fun fullSync(token: String) {
+        sync.sync(token)
+        // Resumen diario de Health Connect a la planilla (si hay permisos); un error acá no frena las comidas.
+        runCatching {
+            if (health.isAvailable() && health.grantedPermissions().containsAll(health.permissions)) {
+                sync.writeDaily(token, health.dailySummaries(14))
+            }
+        }
+    }
     var syncMsg by remember { mutableStateOf<String?>(null) }
     var syncing by remember { mutableStateOf(false) }
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
         scope.launch {
             syncMsg = try {
-                sync.sync(sync.tokenFromConsent(res.data)); null
+                fullSync(sync.tokenFromConsent(res.data)); null
             } catch (e: Exception) { "No se pudo sincronizar: ${e.message}" }
             syncing = false
         }
@@ -100,7 +110,7 @@ fun MealsScreen(db: AppDatabase) {
         syncing = true
         try {
             when (val st = sync.authorize(context as Activity)) {
-                is AuthStep.Token -> { sync.sync(st.token); syncMsg = null; syncing = false }
+                is AuthStep.Token -> { fullSync(st.token); syncMsg = null; syncing = false }
                 is AuthStep.NeedsConsent ->
                     if (interactive) consent.launch(IntentSenderRequest.Builder(st.intent.intentSender).build())
                     else { syncMsg = "Deslizá hacia abajo para dar permiso a Google"; syncing = false }

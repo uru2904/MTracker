@@ -22,6 +22,17 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+/** Resumen de un día para la pestaña Diario de la planilla. */
+data class DailySummary(
+    val date: LocalDate,
+    val steps: Long,
+    val sleepHours: Double,
+    val napHours: Double,
+    val weightKg: Double?,
+    val restingHr: Long?,
+    val exercises: String,
+)
+
 /** Resumen de sueño de las últimas 24 horas: total y cuánto fue siesta. */
 data class SleepSummary(val total: Duration, val nap: Duration)
 
@@ -88,6 +99,32 @@ class HealthRepository(private val context: Context) {
                 TimeRangeFilter.after(Instant.now().minus(Duration.ofDays(days))),
             )
         ).records.sortedByDescending { it.startTime }
+
+    /** Resumen de cada uno de los últimos [days] días (incluye hoy). */
+    suspend fun dailySummaries(days: Int = 14): List<DailySummary> =
+        (0 until days).map { LocalDate.now().minusDays(it.toLong()) }.map { day(it) }
+
+    private suspend fun day(date: LocalDate): DailySummary {
+        val start = date.atStartOfDay(zone).toInstant()
+        val end = date.plusDays(1).atStartOfDay(zone).toInstant()
+        val range = TimeRangeFilter.between(start, end)
+        val steps = client.aggregate(AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), range))[StepsRecord.COUNT_TOTAL] ?: 0L
+        // Sueño: sesiones que terminaron ese día; la más larga es el sueño principal.
+        val sleeps = client.readRecords(
+            ReadRecordsRequest(SleepSessionRecord::class, TimeRangeFilter.between(start.minus(Duration.ofHours(18)), end))
+        ).records.filter { !it.endTime.isBefore(start) && it.endTime.isBefore(end) }
+        val durs = sleeps.map { Duration.between(it.startTime, it.endTime).toMinutes() }
+        val total = durs.sum()
+        val nap = total - (durs.maxOrNull() ?: 0L)
+        val weight = client.readRecords(ReadRecordsRequest(WeightRecord::class, range)).records
+            .maxByOrNull { it.time }?.weight?.inKilograms
+        val rhr = client.readRecords(ReadRecordsRequest(RestingHeartRateRecord::class, range)).records
+            .map { it.beatsPerMinute }.takeIf { it.isNotEmpty() }?.average()?.let { Math.round(it) }
+        val ex = client.readRecords(ReadRecordsRequest(ExerciseSessionRecord::class, range)).records
+            .sortedBy { it.startTime }
+            .joinToString("; ") { "${exerciseName(it.exerciseType)} ${Duration.between(it.startTime, it.endTime).toMinutes()} min" }
+        return DailySummary(date, steps, total / 60.0, nap / 60.0, weight, rhr, ex)
+    }
 
     companion object {
         fun exerciseName(type: Int): String = when (type) {
