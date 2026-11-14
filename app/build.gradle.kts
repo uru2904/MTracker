@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -56,4 +57,11 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
+
+    val room = "2.6.1"
+    implementation("androidx.room:room-runtime:$room")
+    implementation("androidx.room:room-ktx:$room")
+    ksp("androidx.room:room-compiler:$room")
+
+    testImplementation("junit:junit:4.13.2")
 }
