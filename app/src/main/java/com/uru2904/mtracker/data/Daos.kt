@@ -126,6 +126,17 @@ interface MeasurementDao {
 
     @Query("SELECT * FROM measurement WHERE typeId = :typeId ORDER BY date")
     fun history(typeId: Long): Flow<List<MeasurementEntry>>
+
+    @Query("SELECT * FROM measurement_type ORDER BY sortOrder")
+    suspend fun allTypes(): List<MeasurementType>
+
+    @Query("SELECT * FROM measurement ORDER BY date")
+    suspend fun all(): List<MeasurementEntry>
+
+    @Insert suspend fun insertAll(m: List<MeasurementEntry>)
+
+    @Query("SELECT MAX(date) FROM measurement")
+    suspend fun lastDate(): String?
 }
 
 @Dao

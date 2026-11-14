@@ -66,6 +66,7 @@ fun ScaleScreen(db: AppDatabase) {
     var lastSavedAt by remember { mutableStateOf(0L) }
     val raw = remember { mutableStateListOf<String>() }
     var showRaw by remember { mutableStateOf(false) }
+    var weighed by remember { mutableStateOf<WeightEntry?>(null) }
     val recent by db.weights().since(System.currentTimeMillis() - 30L * 86_400_000).collectAsState(initial = emptyList())
 
     val perms = if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN)
@@ -77,9 +78,11 @@ fun ScaleScreen(db: AppDatabase) {
         if (lastSavedKg == r.kg && now - lastSavedAt < 120_000) return
         lastSavedKg = r.kg; lastSavedAt = now
         scope.launch {
-            db.weights().insert(WeightEntry(timestamp = now, kg = r.kg, source = "balanza"))
+            val entry = WeightEntry(timestamp = now, kg = r.kg, source = "balanza")
+            db.weights().insert(entry)
             val hc = runCatching { health.writeWeight(r.kg) }.isSuccess
             status = "Guardado: ${num(r.kg)} kg" + if (hc) " (también en Health Connect)" else ""
+            weighed = entry // abre el checklist: composición y medidas
         }
     }
 
@@ -153,4 +156,6 @@ fun ScaleScreen(db: AppDatabase) {
         )
         if (showRaw) raw.reversed().forEach { Text(it, color = Color(0xFF6B6B6B), fontSize = 11.sp) }
     }
+
+    weighed?.let { w -> WeighInDialog(db, w) { weighed = null } }
 }

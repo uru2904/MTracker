@@ -111,6 +111,68 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         }
     }
 
+    /**
+     * Medidas: trae de la planilla las que no están en la app (por fecha y medida),
+     * y después reescribe la pestaña con todo, una columna por medida.
+     */
+    suspend fun writeMedidas(token: String) {
+        val id = sheetId ?: return
+        val types = db.measurements().allTypes()
+        if (types.isEmpty()) return
+        val rows = withContext(Dispatchers.IO) { get(id, "Medidas!A1:Z", token) }
+        if (rows.isNotEmpty()) {
+            val header = rows.first()
+            val existing = db.measurements().all().map { it.typeId to it.date }.toSet()
+            val toAdd = mutableListOf<com.uru2904.mtracker.data.MeasurementEntry>()
+            rows.drop(1).forEach { r ->
+                val date = SheetMealParser.parseDate(r.getOrNull(0).orEmpty())?.toString() ?: return@forEach
+                header.forEachIndexed { i, h ->
+                    if (i == 0) return@forEachIndexed
+                    val t = types.firstOrNull { h.trim().lowercase().startsWith(it.name.lowercase()) } ?: return@forEachIndexed
+                    val v = r.getOrNull(i)?.replace(',', '.')?.toDoubleOrNull() ?: return@forEachIndexed
+                    if ((t.id to date) !in existing) toAdd += com.uru2904.mtracker.data.MeasurementEntry(typeId = t.id, date = date, cm = v)
+                }
+            }
+            if (toAdd.isNotEmpty()) db.measurements().insertAll(toAdd)
+        }
+        val all = db.measurements().all()
+        val used = types.filter { t -> t.active || all.any { it.typeId == t.id } }
+        val values = JSONArray().put(JSONArray().apply { put("Fecha"); used.forEach { put("${it.name} (cm)") } })
+        all.groupBy { it.date }.toSortedMap().forEach { (date, ms) ->
+            values.put(JSONArray().apply {
+                put(date)
+                used.forEach { t -> put(ms.firstOrNull { it.typeId == t.id }?.cm ?: "") }
+            })
+        }
+        withContext(Dispatchers.IO) {
+            send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Medidas!A:Z") + ":clear", token, JSONObject())
+            send("PUT", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Medidas!A1") + "?valueInputOption=RAW",
+                token, JSONObject().put("values", values))
+        }
+    }
+
+    /** Todo junto: comidas, gym, medidas y resumen diario. Los errores de lo secundario no frenan las comidas. */
+    suspend fun syncAll(token: String, health: com.uru2904.mtracker.health.HealthRepository) {
+        sync(token)
+        runCatching { writeGym(token) }
+        runCatching { writeMedidas(token) }
+        runCatching {
+            if (health.isAvailable() && health.stepsPermission in health.grantedPermissions()) {
+                writeDaily(token, health.dailySummaries(14))
+            }
+        }
+    }
+
+    /** Sincroniza sin mostrar nada si Google ya dio permiso; si hace falta consentimiento, no hace nada. */
+    suspend fun syncSilently(activity: Activity, health: com.uru2904.mtracker.health.HealthRepository): Boolean =
+        runCatching {
+            if (sheetId == null) return false
+            when (val st = authorize(activity)) {
+                is AuthStep.Token -> { syncAll(st.token, health); true }
+                else -> false
+            }
+        }.getOrDefault(false)
+
     /** Escribe (o actualiza por fecha) los resúmenes diarios en la pestaña Diario. */
     suspend fun writeDaily(token: String, days: List<com.uru2904.mtracker.health.DailySummary>) {
         val id = sheetId ?: return
@@ -121,17 +183,21 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
             fun row(d: com.uru2904.mtracker.health.DailySummary) = JSONArray()
                 .put(d.date.toString()).put(d.steps).put(round1(d.sleepHours)).put(round1(d.napHours))
                 .put(d.weightKg?.let { round1(it) } ?: "").put(d.restingHr ?: "").put(d.exercises).put(now)
+                .put(d.bodyFatPct?.let { round1(it) } ?: "").put(d.leanKg?.let { round1(it) } ?: "")
+            send("PUT", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Diario!A1:J1") + "?valueInputOption=RAW", token,
+                JSONObject().put("values", JSONArray().put(JSONArray().put("Fecha").put("Pasos").put("Sueño total (h)").put("Siesta (h)")
+                    .put("Peso (kg)").put("FC reposo").put("Entrenamientos").put("Actualizado").put("Grasa (%)").put("Masa magra (kg)"))))
             val updates = JSONArray()
             val appends = JSONArray()
             days.sortedBy { it.date }.forEach { d ->
                 val idx = existing.indexOf(d.date.toString())
-                if (idx > 0) updates.put(JSONObject().put("range", "Diario!A${idx + 1}:H${idx + 1}").put("values", JSONArray().put(row(d))))
+                if (idx > 0) updates.put(JSONObject().put("range", "Diario!A${idx + 1}:J${idx + 1}").put("values", JSONArray().put(row(d))))
                 else appends.put(row(d))
             }
             if (updates.length() > 0) send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values:batchUpdate", token,
                 JSONObject().put("valueInputOption", "RAW").put("data", updates))
             if (appends.length() > 0) send("POST",
-                "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Diario!A:H") + ":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",
+                "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Diario!A:J") + ":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",
                 token, JSONObject().put("values", appends))
         }
     }

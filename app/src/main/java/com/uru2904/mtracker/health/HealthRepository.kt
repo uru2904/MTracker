@@ -31,7 +31,14 @@ data class DailySummary(
     val weightKg: Double?,
     val restingHr: Long?,
     val exercises: String,
+    val bodyFatPct: Double? = null,
+    val leanKg: Double? = null,
 )
+
+/** Composición corporal medida con el reloj (Samsung la pasa a Health Connect). */
+data class Composition(val bodyFatPct: Double?, val leanKg: Double?, val boneKg: Double?, val at: Instant) {
+    val any get() = bodyFatPct != null || leanKg != null || boneKg != null
+}
 
 /** Resumen de sueño de las últimas 24 horas: total y cuánto fue siesta. */
 data class SleepSummary(val total: Duration, val nap: Duration)
@@ -52,7 +59,13 @@ class HealthRepository(private val context: Context) {
         HealthPermission.getReadPermission(Vo2MaxRecord::class),
         HealthPermission.getReadPermission(WeightRecord::class),
         HealthPermission.getWritePermission(WeightRecord::class),
+        HealthPermission.getReadPermission(androidx.health.connect.client.records.BodyFatRecord::class),
+        HealthPermission.getReadPermission(androidx.health.connect.client.records.LeanBodyMassRecord::class),
+        HealthPermission.getReadPermission(androidx.health.connect.client.records.BoneMassRecord::class),
     )
+
+    /** Permiso mínimo para el resumen diario (los demás se leen si están). */
+    val stepsPermission = HealthPermission.getReadPermission(StepsRecord::class)
 
     private val zone: ZoneId get() = ZoneId.systemDefault()
 
@@ -100,6 +113,27 @@ class HealthRepository(private val context: Context) {
             )
         ).records.sortedByDescending { it.startTime }
 
+    /** Última composición corporal registrada desde [since] (o null si no hay). */
+    suspend fun compositionSince(since: Instant): Composition? {
+        val range = TimeRangeFilter.after(since)
+        val fat = runCatching {
+            client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.BodyFatRecord::class, range)).records.maxByOrNull { it.time }
+        }.getOrNull()
+        val lean = runCatching {
+            client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.LeanBodyMassRecord::class, range)).records.maxByOrNull { it.time }
+        }.getOrNull()
+        val bone = runCatching {
+            client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.BoneMassRecord::class, range)).records.maxByOrNull { it.time }
+        }.getOrNull()
+        val c = Composition(
+            bodyFatPct = fat?.percentage?.value,
+            leanKg = lean?.mass?.inKilograms,
+            boneKg = bone?.mass?.inKilograms,
+            at = listOfNotNull(fat?.time, lean?.time, bone?.time).maxOrNull() ?: Instant.now(),
+        )
+        return c.takeIf { it.any }
+    }
+
     /** Guarda un peso en Health Connect (así lo ven Samsung Health y el resumen diario). */
     suspend fun writeWeight(kg: Double, at: Instant = Instant.now()) {
         client.insertRecords(
@@ -129,14 +163,18 @@ class HealthRepository(private val context: Context) {
         val durs = sleeps.map { Duration.between(it.startTime, it.endTime).toMinutes() }
         val total = durs.sum()
         val nap = total - (durs.maxOrNull() ?: 0L)
-        val weight = client.readRecords(ReadRecordsRequest(WeightRecord::class, range)).records
-            .maxByOrNull { it.time }?.weight?.inKilograms
-        val rhr = client.readRecords(ReadRecordsRequest(RestingHeartRateRecord::class, range)).records
-            .map { it.beatsPerMinute }.takeIf { it.isNotEmpty() }?.average()?.let { Math.round(it) }
+        val weight = runCatching {
+            client.readRecords(ReadRecordsRequest(WeightRecord::class, range)).records.maxByOrNull { it.time }?.weight?.inKilograms
+        }.getOrNull()
+        val rhr = runCatching {
+            client.readRecords(ReadRecordsRequest(RestingHeartRateRecord::class, range)).records
+                .map { it.beatsPerMinute }.takeIf { it.isNotEmpty() }?.average()?.let { Math.round(it) }
+        }.getOrNull()
         val ex = client.readRecords(ReadRecordsRequest(ExerciseSessionRecord::class, range)).records
             .sortedBy { it.startTime }
             .joinToString("; ") { "${exerciseName(it.exerciseType)} ${Duration.between(it.startTime, it.endTime).toMinutes()} min" }
-        return DailySummary(date, steps, total / 60.0, nap / 60.0, weight, rhr, ex)
+        val comp = runCatching { compositionSince(start) }.getOrNull()?.takeIf { it.at.isBefore(end) }
+        return DailySummary(date, steps, total / 60.0, nap / 60.0, weight, rhr, ex, comp?.bodyFatPct, comp?.leanKg)
     }
 
     companion object {

@@ -92,16 +92,7 @@ fun MealsScreen(db: AppDatabase) {
     val context = LocalContext.current
     val sync = remember { SheetsSync(context, db) }
     val health = remember { com.uru2904.mtracker.health.HealthRepository(context) }
-    suspend fun fullSync(token: String) {
-        sync.sync(token)
-        runCatching { sync.writeGym(token) }
-        // Resumen diario de Health Connect a la planilla (si hay permisos); un error acá no frena las comidas.
-        runCatching {
-            if (health.isAvailable() && health.grantedPermissions().containsAll(health.permissions)) {
-                sync.writeDaily(token, health.dailySummaries(14))
-            }
-        }
-    }
+    suspend fun fullSync(token: String) = sync.syncAll(token, health)
     var syncMsg by remember { mutableStateOf<String?>(null) }
     var syncing by remember { mutableStateOf(false) }
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
