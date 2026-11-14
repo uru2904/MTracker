@@ -95,6 +95,7 @@ fun MealsScreen(db: AppDatabase) {
     suspend fun fullSync(token: String) = sync.syncAll(token, health)
     var syncMsg by remember { mutableStateOf<String?>(null) }
     var syncing by remember { mutableStateOf(false) }
+    var pulling by remember { mutableStateOf(false) }
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
         scope.launch {
             syncMsg = try {
@@ -138,16 +139,11 @@ fun MealsScreen(db: AppDatabase) {
             )
         }
 
-        RefreshBox(refreshing = syncing, onRefresh = { scope.launch { doSync(interactive = true) } }) {
+        // Aviso de planilla y totales del día: fijos, no se mueven al deslizar para actualizar.
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-
         if (sync.sheetId == null || syncMsg != null) Row(
             Modifier.fillMaxWidth().background(Color(0xFF1A1205), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
@@ -174,6 +170,19 @@ fun MealsScreen(db: AppDatabase) {
             Text("Carbohidratos ${num(totals.carbs)} / $carbT g · Grasas ${num(totals.fat)} / $fatT g", color = Soft, fontSize = 13.sp)
             if (drinks > 0) Text("Alcohol: ${num(drinks)} tragos", color = Soft, fontSize = 13.sp)
         }
+        }
+
+        // Solo el deslizar manual muestra la ruedita; la sincronización al entrar es silenciosa.
+        RefreshBox(refreshing = pulling, onRefresh = { scope.launch { pulling = true; doSync(interactive = true); pulling = false } }) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+
 
         // Línea de tiempo (estilo MacroFactor): hora · comida + barra de macros · kcal. Deslizar a la izquierda borra.
         val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
