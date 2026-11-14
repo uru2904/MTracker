@@ -1,0 +1,18 @@
+# Android / Gradle
+*.iml
+.gradle/
+build/
+local.properties
+.idea/
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Firma y secretos: nunca subir
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+*.p12
+google-services.json
