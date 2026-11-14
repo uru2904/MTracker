@@ -13,14 +13,14 @@ KNOWN = ["Cereales", "Vegetales", "Pescados", "Carnes", "Leches", "Huevos", "Fru
 NUM = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
 def find_pdfs():
-    for extra in ("Varios/indice1.htm", "Varios/arriba.htm"):
+    for extra in ("Tablas/Tabla.htm",):
         try:
             h = requests.get(BASE + extra, timeout=30)
-            print("INDEX", extra, h.status_code, re.sub(r"\s+", " ", h.text)[:3000])
+            print("INDEX", extra, h.status_code, " ".join(re.findall(r'(?:href|src)=["\']([^"\']+)["\']', h.text, re.I)))
         except Exception as e:
             print("INDEX ERROR", extra, e)
     seen, pdfs, pages = set(), set(), [BASE]
-    for depth in range(3):
+    for depth in range(6):
         nxt = []
         for url in pages:
             if url in seen: continue
