@@ -16,6 +16,17 @@ interface MealDao {
     @Update suspend fun update(meal: MealEntry)
     @Delete suspend fun delete(meal: MealEntry)
 
+    @Insert suspend fun insertAll(meals: List<MealEntry>)
+
+    @Query("DELETE FROM meal WHERE source = :source")
+    suspend fun deleteBySource(source: String)
+
+    @Transaction
+    suspend fun replaceSource(source: String, meals: List<MealEntry>) {
+        deleteBySource(source)
+        insertAll(meals)
+    }
+
     @Query("SELECT * FROM meal WHERE logicalDate = :date ORDER BY timestamp")
     fun forDay(date: String): Flow<List<MealEntry>>
 

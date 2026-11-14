@@ -40,6 +40,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.uru2904.mtracker.data.AppDatabase
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.uru2904.mtracker.sheets.AuthStep
+import com.uru2904.mtracker.sheets.SheetMealParser
+import com.uru2904.mtracker.sheets.SheetsSync
 import com.uru2904.mtracker.data.DayTotals
 import com.uru2904.mtracker.data.FoodItem
 import com.uru2904.mtracker.data.MealEntry
@@ -69,6 +77,36 @@ fun MealsScreen(db: AppDatabase) {
     var showFoods by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // Sincronización con la planilla (buzón del chat)
+    val context = LocalContext.current
+    val sync = remember { SheetsSync(context, db) }
+    var syncMsg by remember { mutableStateOf<String?>(null) }
+    var askLink by remember { mutableStateOf(false) }
+    var syncing by remember { mutableStateOf(false) }
+    val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
+        scope.launch {
+            syncMsg = try {
+                "Planilla sincronizada (${sync.syncMeals(sync.tokenFromConsent(res.data))} comidas)"
+            } catch (e: Exception) { "No se pudo sincronizar: ${e.message}" }
+            syncing = false
+        }
+    }
+    suspend fun doSync(interactive: Boolean) {
+        if (sync.sheetId == null) { syncMsg = null; return }
+        syncing = true
+        try {
+            when (val st = sync.authorize(context as Activity)) {
+                is AuthStep.Token -> { syncMsg = "Planilla sincronizada (${sync.syncMeals(st.token)} comidas)"; syncing = false }
+                is AuthStep.NeedsConsent ->
+                    if (interactive) consent.launch(IntentSenderRequest.Builder(st.intent.intentSender).build())
+                    else { syncMsg = "Tocá Sincronizar para dar permiso a Google"; syncing = false }
+            }
+        } catch (e: Exception) {
+            syncMsg = "No se pudo sincronizar: ${e.message}"; syncing = false
+        }
+    }
+    LaunchedEffect(Unit) { doSync(interactive = false) }
+
     val kcalT = goal?.kcalTarget ?: 2250
     val protT = goal?.proteinTarget ?: 150
     val carbT = goal?.carbsTarget ?: 265
@@ -92,6 +130,27 @@ fun MealsScreen(db: AppDatabase) {
             Text(
                 "›", color = if (date < today) Soft else Color(0xFF333333), fontSize = 28.sp,
                 modifier = Modifier.clickable(enabled = date < today) { date = date.plusDays(1) }.padding(12.dp),
+            )
+        }
+
+        Row(
+            Modifier.fillMaxWidth().background(Color(0xFF0B0B0B), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                when {
+                    syncing -> "Sincronizando planilla…"
+                    sync.sheetId == null -> "Planilla sin conectar"
+                    else -> syncMsg ?: "Planilla conectada"
+                },
+                color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f),
+            )
+            Text(
+                if (sync.sheetId == null) "Conectar" else "Sincronizar",
+                color = AccentLight, fontSize = 13.sp,
+                modifier = Modifier.clickable(enabled = !syncing) {
+                    if (sync.sheetId == null) askLink = true else scope.launch { doSync(interactive = true) }
+                }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
             )
         }
 
@@ -119,7 +178,8 @@ fun MealsScreen(db: AppDatabase) {
                         "${m.mealType} · ${timeFmt.format(Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()))}",
                         color = Muted, fontSize = 12.sp,
                     )
-                    Text("Borrar", color = Muted, fontSize = 12.sp, modifier = Modifier.clickable { scope.launch { db.meals().delete(m) } })
+                    if (m.source == "planilla") Text("planilla", color = Color(0xFF555555), fontSize = 12.sp)
+                    else Text("Borrar", color = Muted, fontSize = 12.sp, modifier = Modifier.clickable { scope.launch { db.meals().delete(m) } })
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(m.description, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -146,6 +206,31 @@ fun MealsScreen(db: AppDatabase) {
     }
 
     if (showFoods) FoodsDialog(db) { showFoods = false }
+
+    if (askLink) {
+        var link by remember { mutableStateOf("") }
+        val id = SheetMealParser.sheetIdFrom(link)
+        Dialog(onDismissRequest = { askLink = false }) {
+            Column(
+                Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(16.dp)).padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Conectar planilla", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Pegá el link de la planilla de Google Sheets donde Claude carga tus comidas.", color = Soft, fontSize = 14.sp)
+                field(link, "Link de la planilla", { link = it })
+                Button(
+                    onClick = {
+                        sync.sheetId = id
+                        askLink = false
+                        scope.launch { doSync(interactive = true) }
+                    },
+                    enabled = id != null,
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (id != null) "Conectar" else "Pegá un link válido", color = if (id != null) Color.White else Muted) }
+            }
+        }
+    }
 
     if (adding) {
         AddMealDialog(

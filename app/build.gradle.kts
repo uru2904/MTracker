@@ -66,6 +66,8 @@ dependencies {
     ksp("androidx.room:room-compiler:$room")
 
     implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
 }
