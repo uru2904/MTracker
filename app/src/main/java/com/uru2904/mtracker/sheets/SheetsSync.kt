@@ -84,6 +84,33 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         return id
     }
 
+    /** Reescribe la pestaña Gym con todas las sesiones importadas de Hevy (una fila por sesión). */
+    suspend fun writeGym(token: String) {
+        val id = sheetId ?: return
+        val sessions = db.workouts().all()
+        if (sessions.isEmpty()) return
+        val sets = db.workouts().allSets().groupBy { it.sessionId }
+        val zone = ZoneId.systemDefault()
+        val values = JSONArray()
+        sessions.forEach { w ->
+            val t = Instant.ofEpochMilli(w.start).atZone(zone)
+            val ss = sets[w.id].orEmpty()
+            val volume = ss.sumOf { (it.weightKg ?: 0.0) * (it.reps ?: 0) }
+            values.put(JSONArray()
+                .put(t.toLocalDate().toString()).put(DateTimeFormatter.ofPattern("H:mm").format(t))
+                .put(w.routine).put(w.durationMin).put(ss.map { it.exercise }.distinct().size)
+                .put(ss.size).put(Math.round(volume)))
+        }
+        withContext(Dispatchers.IO) {
+            val header = JSONArray().put(JSONArray().put("Fecha").put("Hora").put("Rutina").put("Duración (min)")
+                .put("Ejercicios").put("Series").put("Volumen (kg)"))
+            send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Gym!A:G") + ":clear", token, JSONObject())
+            send("PUT", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Gym!A1") + "?valueInputOption=RAW",
+                token, JSONObject().put("values", JSONArray().put(header.getJSONArray(0)).let { arr ->
+                    for (i in 0 until values.length()) arr.put(values.getJSONArray(i)); arr }))
+        }
+    }
+
     /** Escribe (o actualiza por fecha) los resúmenes diarios en la pestaña Diario. */
     suspend fun writeDaily(token: String, days: List<com.uru2904.mtracker.health.DailySummary>) {
         val id = sheetId ?: return

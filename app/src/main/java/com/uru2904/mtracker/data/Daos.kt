@@ -88,6 +88,12 @@ interface WorkoutDao {
     @Query("SELECT * FROM workout_set WHERE sessionId = :sessionId ORDER BY exercise, setIndex")
     suspend fun setsOf(sessionId: Long): List<WorkoutSet>
 
+    @Query("SELECT * FROM workout ORDER BY start")
+    suspend fun all(): List<WorkoutSession>
+
+    @Query("SELECT * FROM workout_set")
+    suspend fun allSets(): List<WorkoutSet>
+
     @Query("SELECT COUNT(*) FROM workout WHERE start = :start AND source = :source")
     suspend fun countAt(start: Long, source: String): Int
 }

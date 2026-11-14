@@ -89,6 +89,7 @@ fun MealsScreen(db: AppDatabase) {
     val health = remember { com.uru2904.mtracker.health.HealthRepository(context) }
     suspend fun fullSync(token: String) {
         sync.sync(token)
+        runCatching { sync.writeGym(token) }
         // Resumen diario de Health Connect a la planilla (si hay permisos); un error acá no frena las comidas.
         runCatching {
             if (health.isAvailable() && health.grantedPermissions().containsAll(health.permissions)) {
