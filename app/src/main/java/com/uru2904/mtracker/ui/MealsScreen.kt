@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -90,7 +91,7 @@ fun MealsScreen(db: AppDatabase) {
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
         scope.launch {
             syncMsg = try {
-                "Planilla sincronizada (${sync.sync(sync.tokenFromConsent(res.data))} comidas)"
+                sync.sync(sync.tokenFromConsent(res.data)); null
             } catch (e: Exception) { "No se pudo sincronizar: ${e.message}" }
             syncing = false
         }
@@ -99,7 +100,7 @@ fun MealsScreen(db: AppDatabase) {
         syncing = true
         try {
             when (val st = sync.authorize(context as Activity)) {
-                is AuthStep.Token -> { syncMsg = "Planilla sincronizada (${sync.sync(st.token)} comidas)"; syncing = false }
+                is AuthStep.Token -> { sync.sync(st.token); syncMsg = null; syncing = false }
                 is AuthStep.NeedsConsent ->
                     if (interactive) consent.launch(IntentSenderRequest.Builder(st.intent.intentSender).build())
                     else { syncMsg = "Deslizá hacia abajo para dar permiso a Google"; syncing = false }
@@ -137,26 +138,17 @@ fun MealsScreen(db: AppDatabase) {
             )
         }
 
-        Row(
-            Modifier.fillMaxWidth().background(Color(0xFF0B0B0B), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+        if (sync.sheetId == null || syncMsg != null) Row(
+            Modifier.fillMaxWidth().background(Color(0xFF1A1205), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                when {
-                    syncing -> "Sincronizando planilla…"
-                    sync.sheetId == null -> "Planilla sin conectar"
-                    else -> syncMsg ?: "Planilla conectada · deslizá hacia abajo para actualizar"
-                },
-                color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f),
+                if (sync.sheetId == null) "Planilla sin conectar" else syncMsg.orEmpty(),
+                color = Color(0xFFF2C14E), fontSize = 12.sp, modifier = Modifier.weight(1f),
             )
             if (sync.sheetId == null) Text(
                 "Conectar", color = AccentLight, fontSize = 13.sp,
                 modifier = Modifier.clickable { scope.launch { doSync(interactive = true) } }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
-            ) else Text(
-                "Abrir", color = AccentLight, fontSize = 13.sp,
-                modifier = Modifier.clickable {
-                    sync.sheetUrl?.let { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(it))) }
-                }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
             )
         }
 
@@ -173,36 +165,15 @@ fun MealsScreen(db: AppDatabase) {
             if (drinks > 0) Text("Alcohol: ${num(drinks)} tragos", color = Soft, fontSize = 13.sp)
         }
 
+        // Línea de tiempo (estilo MacroFactor): hora · comida + barra de macros · kcal. Deslizar a la izquierda borra.
         val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
-        meals.forEach { m ->
-            Column(
-                Modifier.fillMaxWidth().background(Card, RoundedCornerShape(14.dp)).padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(
-                        "${m.mealType} · ${timeFmt.format(Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()))}",
-                        color = Muted, fontSize = 12.sp,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (m.pendingOp == "add") Text("sin subir", color = Color(0xFFB45309), fontSize = 12.sp)
-                        Icon(
-                            Icons.Outlined.Delete, contentDescription = "Borrar", tint = Muted,
-                            modifier = Modifier.size(20.dp).clickable { toDelete = m },
-                        )
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(m.description, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("${m.kcal.toInt()}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-                Text(
-                    "P ${num(m.protein)} · C ${num(m.carbs)} · G ${num(m.fat)}" + (m.drinks?.let { " · ${num(it)} tragos" } ?: ""),
-                    color = Muted, fontSize = 12.sp,
-                )
+        Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
+            meals.forEachIndexed { idx, m ->
+                if (idx > 0) Box(Modifier.fillMaxWidth().padding(start = 64.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+                MealRow(m, timeFmt.format(Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()))) { toDelete = m }
             }
         }
-        if (meals.isEmpty()) Text("Sin comidas cargadas.", color = Muted, fontSize = 14.sp)
+        if (meals.isEmpty()) Text("Sin comidas cargadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp))
 
         Button(
             onClick = { adding = true },
@@ -615,6 +586,66 @@ private fun FoodEditor(db: AppDatabase, initial: FoodItem?, onClose: () -> Unit)
                 )
                 Text("Borrar un alimento no cambia las comidas que ya cargaste con él.", color = Muted, fontSize = 12.sp)
             }
+        }
+    }
+}
+
+
+private val ProtColor = Color(0xFF93B4FF)
+private val CarbColor = Color(0xFFF2C14E)
+private val FatColor = Color(0xFFE879A6)
+
+/** Fila de la línea de tiempo. Deslizar hacia la izquierda pide confirmación para borrar. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun MealRow(m: MealEntry, time: String, onDelete: () -> Unit) {
+    val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
+        confirmValueChange = {
+            if (it == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) onDelete()
+            false // vuelve a su lugar; el borrado lo confirma el diálogo
+        },
+    )
+    androidx.compose.material3.SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            Row(
+                Modifier.fillMaxSize().background(Color(0xFF3A1212)).padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically,
+            ) { Icon(Icons.Outlined.Delete, contentDescription = "Borrar", tint = Color(0xFFF87171)) }
+        },
+    ) {
+        Row(
+            Modifier.fillMaxWidth().background(Card).padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(Modifier.width(50.dp)) {
+                Text(time, color = Soft, fontSize = 13.sp)
+                if (m.pendingOp == "add") Box(Modifier.padding(top = 6.dp).size(6.dp).background(Color(0xFFB45309), RoundedCornerShape(3.dp)))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(m.mealType, color = Muted, fontSize = 11.sp)
+                Text(m.description, color = Color.White, fontSize = 15.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                MacroBar(m.protein, m.carbs, m.fat)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("P ${num(m.protein)}", color = ProtColor, fontSize = 11.sp)
+                    Text("C ${num(m.carbs)}", color = CarbColor, fontSize = 11.sp)
+                    Text("G ${num(m.fat)}", color = FatColor, fontSize = 11.sp)
+                }
+            }
+            Text("${m.kcal.toInt()}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 10.dp))
+        }
+    }
+}
+
+/** Barra fina con la proporción de calorías que aporta cada macro (P y C 4 kcal/g, G 9 kcal/g). */
+@Composable
+private fun MacroBar(p: Double, c: Double, f: Double) {
+    val kp = p * 4; val kc = c * 4; val kf = f * 9
+    val total = (kp + kc + kf).takeIf { it > 0 } ?: return
+    Row(Modifier.fillMaxWidth().height(4.dp)) {
+        listOf(kp to ProtColor, kc to CarbColor, kf to FatColor).forEach { (v, col) ->
+            if (v > 0) Box(Modifier.weight((v / total).toFloat()).fillMaxHeight().background(col))
         }
     }
 }

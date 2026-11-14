@@ -32,6 +32,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -109,9 +111,41 @@ fun ConfirmDialog(title: String, text: String, confirmLabel: String = "Borrar", 
     )
 }
 
-/** Deslizar hacia abajo para actualizar. El contenido tiene que ser desplazable. */
+/**
+ * Deslizar hacia abajo para actualizar: el contenido baja y la ruedita aparece en el hueco
+ * de arriba (sin círculo flotante); al terminar, el contenido sube y la tapa.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RefreshBox(refreshing: Boolean, onRefresh: () -> Unit, content: @Composable () -> Unit) {
-    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) { content() }
+    val state = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    val gap = 64.dp
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val target = if (refreshing) 1f else state.distanceFraction.coerceIn(0f, 1.5f)
+    val fraction by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = target, label = "refresh",
+        animationSpec = if (state.distanceFraction > 0f && !refreshing) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(250),
+    )
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = onRefresh,
+        state = state,
+        modifier = Modifier.fillMaxSize(),
+        indicator = {
+            Box(Modifier.fillMaxWidth().height(gap * fraction.coerceAtMost(1f)), contentAlignment = Alignment.Center) {
+                if (fraction > 0.15f) {
+                    if (refreshing) androidx.compose.material3.CircularProgressIndicator(
+                        color = Soft, strokeWidth = 2.dp, modifier = Modifier.size(22.dp),
+                    ) else androidx.compose.material3.CircularProgressIndicator(
+                        progress = { fraction.coerceAtMost(1f) },
+                        color = Soft, strokeWidth = 2.dp, modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        },
+    ) {
+        Box(Modifier.fillMaxSize().graphicsLayer { translationY = with(density) { (gap * fraction.coerceAtMost(1.2f)).toPx() } }) {
+            content()
+        }
+    }
 }
