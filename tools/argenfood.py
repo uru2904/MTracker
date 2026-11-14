@@ -86,17 +86,19 @@ def parse_pdf(data, group):
                 if "kcal" not in vals: continue
                 kcal, p, f = vals["kcal"], vals.get("p", 0.0), vals.get("f", 0.0)
                 # Carbohidratos disponibles si están; si no, totales menos fibra; si no, totales.
-                def closes(c): return abs(4 * p + 4 * c + 9 * f - kcal) <= max(25, 0.25 * kcal)
-                if "cd" in vals and closes(vals["cd"]): c = vals["cd"]
-                elif "ct" in vals and closes(vals["ct"] - vals.get("fibra", 0.0)): c = max(0.0, vals["ct"] - vals.get("fibra", 0.0))
-                elif "ct" in vals and closes(vals["ct"]): c = vals["ct"]
-                else:
-                    # Columnas corridas en algunos PDF: se toma el número de la fila que cierra la energía,
-                    # y si ninguno cierra, los carbohidratos por diferencia.
-                    target = max(0.0, (kcal - 4 * p - 9 * f) / 4)
-                    rest = [num(w["text"]) for w in nums]
-                    best = min(rest, key=lambda v: abs(v - target)) if rest else target
-                    c = best if closes(best) else target
+                # Carbohidratos: entre los candidatos de la tabla, el que mejor cierra 4P + 4C + 9G = kcal.
+                target = max(0.0, (kcal - 4 * p - 9 * f) / 4)
+                tol = max(3.0, 0.12 * kcal / 4)  # tolerancia en gramos de carbohidratos
+                has_carb_cols = "ct" in cols or "cd" in cols
+                cands = []
+                if "cd" in vals: cands.append(vals["cd"])
+                if "ct" in vals:
+                    cands.append(vals["ct"])
+                    cands.append(max(0.0, vals["ct"] - vals.get("fibra", 0.0)))
+                if has_carb_cols and not cands:
+                    cands = [num(w["text"]) for w in nums]  # columnas corridas en algunos PDF
+                best = min(cands, key=lambda v: abs(v - target)) if cands else target
+                c = best if abs(best - target) <= tol else target
                 foods.append({"name": name, "kcal": round(kcal), "p": round(p, 1), "c": round(c, 1), "f": round(f, 1), "group": group})
     return foods
 
