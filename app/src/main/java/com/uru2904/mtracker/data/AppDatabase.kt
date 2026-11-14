@@ -45,7 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
                 }
             db.execSQL(
                 "INSERT INTO goal_period (name, startDate, endDate, targetWeightKg, kcalTarget, proteinTarget, carbsTarget, fatTarget) " +
-                    "VALUES ('Río 2027', '2026-11-05', '2027-02-13', NULL, 2250, 150, 265, 65)"
+                    "VALUES ('Río 2027', '2026-11-05', '2027-02-13', 70.5, 2250, 150, 265, 65)"
             )
         }
     }

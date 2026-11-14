@@ -59,7 +59,7 @@ class ShiftCalendar(
     /** Ventana de sueño esperada según el turno de la semana. Valores por defecto, ajustables. */
     fun expectedSleep(date: LocalDate): SleepWindow = when (shiftForWeekOf(date)) {
         Shift.TM -> SleepWindow(LocalTime.of(22, 30), LocalTime.of(6, 0))
-        Shift.TT -> SleepWindow(LocalTime.of(0, 30), LocalTime.of(8, 30))
+        Shift.TT -> SleepWindow(LocalTime.of(1, 0), LocalTime.of(9, 0))
         Shift.TN -> SleepWindow(LocalTime.of(8, 30), LocalTime.of(15, 30))
     }
 }
