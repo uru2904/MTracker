@@ -167,7 +167,12 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
     ) { scope.launch { refresh() } }
 
     LaunchedEffect(Unit) { if (available) refresh() }
+    var refreshing by remember { mutableStateOf(false) }
 
+    com.uru2904.mtracker.ui.RefreshBox(
+        refreshing = refreshing,
+        onRefresh = { scope.launch { refreshing = true; refresh(); refreshing = false } },
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -233,11 +238,7 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Importar CSV de Hevy", color = Color.White) }
 
-        Button(
-            onClick = { scope.launch { refresh() } },
-            colors = ButtonDefaults.buttonColors(containerColor = Card),
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Actualizar", color = Color.White) }
+    }
     }
 }
 

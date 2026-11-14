@@ -6,10 +6,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -87,3 +92,26 @@ fun InfoCard(title: String, value: String? = null, note: String? = null) {
 /** Número con coma decimal y sin decimales si es entero: 82 / 2,5 */
 fun num(v: Double): String =
     if (v == Math.rint(v)) v.toLong().toString() else "%.1f".format(java.util.Locale("es", "AR"), v)
+
+
+/** Confirmación para acciones destructivas (borrar). */
+@Composable
+fun ConfirmDialog(title: String, text: String, confirmLabel: String = "Borrar", onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF161616),
+        titleContentColor = Color.White,
+        textContentColor = Soft,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = { TextButton(onClick = { onConfirm(); onDismiss() }) { Text(confirmLabel, color = Color(0xFFF87171)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = Color.White) } },
+    )
+}
+
+/** Deslizar hacia abajo para actualizar. El contenido tiene que ser desplazable. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RefreshBox(refreshing: Boolean, onRefresh: () -> Unit, content: @Composable () -> Unit) {
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) { content() }
+}

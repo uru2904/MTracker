@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -45,6 +46,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
 import com.uru2904.mtracker.sheets.AuthStep
 import com.uru2904.mtracker.sheets.SheetMealParser
 import com.uru2904.mtracker.sheets.SheetsSync
@@ -75,6 +79,7 @@ fun MealsScreen(db: AppDatabase) {
     val goal by db.goals().activeOn(today.toString()).collectAsState(initial = null)
     var adding by remember { mutableStateOf(false) }
     var showFoods by remember { mutableStateOf(false) }
+    var toDelete by remember { mutableStateOf<MealEntry?>(null) }
     val scope = rememberCoroutineScope()
 
     // Sincronización con la planilla (buzón del chat)
@@ -99,7 +104,7 @@ fun MealsScreen(db: AppDatabase) {
                 is AuthStep.Token -> { syncMsg = "Planilla sincronizada (${sync.sync(st.token)} comidas)"; syncing = false }
                 is AuthStep.NeedsConsent ->
                     if (interactive) consent.launch(IntentSenderRequest.Builder(st.intent.intentSender).build())
-                    else { syncMsg = "Tocá Sincronizar para dar permiso a Google"; syncing = false }
+                    else { syncMsg = "Deslizá hacia abajo para dar permiso a Google"; syncing = false }
             }
         } catch (e: Exception) {
             syncMsg = "No se pudo sincronizar: ${e.message}"; syncing = false
@@ -113,6 +118,7 @@ fun MealsScreen(db: AppDatabase) {
     val fatT = goal?.fatTarget ?: 65
     val drinks = meals.sumOf { it.drinks ?: 0.0 }
 
+    RefreshBox(refreshing = syncing, onRefresh = { scope.launch { doSync(interactive = true) } }) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -141,16 +147,13 @@ fun MealsScreen(db: AppDatabase) {
                 when {
                     syncing -> "Sincronizando planilla…"
                     sync.sheetId == null -> "Planilla sin conectar"
-                    else -> syncMsg ?: "Planilla conectada"
+                    else -> syncMsg ?: "Planilla conectada · deslizá hacia abajo para actualizar"
                 },
                 color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f),
             )
-            Text(
-                if (sync.sheetId == null) "Conectar" else "Sincronizar",
-                color = AccentLight, fontSize = 13.sp,
-                modifier = Modifier.clickable(enabled = !syncing) {
-                    if (sync.sheetId == null) askLink = true else scope.launch { doSync(interactive = true) }
-                }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+            if (sync.sheetId == null) Text(
+                "Conectar", color = AccentLight, fontSize = 13.sp,
+                modifier = Modifier.clickable { askLink = true }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
             )
         }
 
@@ -180,13 +183,10 @@ fun MealsScreen(db: AppDatabase) {
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (m.pendingOp == "add") Text("sin subir", color = Color(0xFFB45309), fontSize = 12.sp)
-                        Text("Borrar", color = Muted, fontSize = 12.sp, modifier = Modifier.clickable {
-                            scope.launch {
-                                if (m.pendingOp == "add") db.meals().delete(m)
-                                else db.meals().update(m.copy(pendingOp = "delete"))
-                                doSync(interactive = false)
-                            }
-                        })
+                        Icon(
+                            Icons.Outlined.Delete, contentDescription = "Borrar", tint = Muted,
+                            modifier = Modifier.size(20.dp).clickable { toDelete = m },
+                        )
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -211,6 +211,22 @@ fun MealsScreen(db: AppDatabase) {
             colors = ButtonDefaults.buttonColors(containerColor = Card),
             modifier = Modifier.fillMaxWidth().height(48.dp),
         ) { Text("Mis alimentos", color = Color.White, fontSize = 15.sp) }
+    }
+    }
+
+    toDelete?.let { m ->
+        ConfirmDialog(
+            title = "¿Borrar esta comida?",
+            text = "\"${m.description}\" se borra de la app y de la planilla.",
+            onConfirm = {
+                scope.launch {
+                    if (m.pendingOp == "add") db.meals().delete(m)
+                    else db.meals().update(m.copy(pendingOp = "delete"))
+                    doSync(interactive = false)
+                }
+            },
+            onDismiss = { toDelete = null },
+        )
     }
 
     if (showFoods) FoodsDialog(db) { showFoods = false }
@@ -605,12 +621,19 @@ private fun FoodEditor(db: AppDatabase, initial: FoodItem?, onClose: () -> Unit)
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Cancelar", color = Color.White) }
             if (initial != null) {
-                Text(
-                    if (confirmDelete) "Tocá de nuevo para confirmar el borrado" else "Borrar alimento",
-                    color = Color(0xFFF87171), fontSize = 15.sp,
-                    modifier = Modifier.clickable {
-                        if (confirmDelete) scope.launch { db.foods().delete(initial); onClose() } else confirmDelete = true
-                    }.padding(vertical = 10.dp),
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.clickable { confirmDelete = true }.padding(vertical = 10.dp),
+                ) {
+                    Icon(Icons.Outlined.Delete, contentDescription = null, tint = Color(0xFFF87171), modifier = Modifier.size(20.dp))
+                    Text("Borrar alimento", color = Color(0xFFF87171), fontSize = 15.sp)
+                }
+                if (confirmDelete) ConfirmDialog(
+                    title = "¿Borrar este alimento?",
+                    text = "\"${initial.name}\" se borra de tus alimentos.",
+                    onConfirm = { scope.launch { db.foods().delete(initial); onClose() } },
+                    onDismiss = { confirmDelete = false },
                 )
                 Text("Borrar un alimento no cambia las comidas que ya cargaste con él.", color = Muted, fontSize = 12.sp)
             }
