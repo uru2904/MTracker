@@ -85,6 +85,24 @@ class MainActivity : ComponentActivity() {
                     when (tab) {
                         Tab.Hoy -> HealthCheckScreen(health, db, sharedUri)
                         Tab.Comidas -> MealsScreen(db)
+                        Tab.Gym -> {
+                            val ctx = androidx.compose.ui.platform.LocalContext.current
+                            val scope = rememberCoroutineScope()
+                            val gymPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                                if (uri != null) scope.launch {
+                                    val msg = try {
+                                        val text = ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                                            ?: error("No se pudo abrir el archivo")
+                                        val r = HevyImporter(db).import(text)
+                                        "Hevy: ${r.added} sesiones nuevas, ${r.skipped} ya estaban"
+                                    } catch (e: Exception) { "No se pudo importar: ${e.message}" }
+                                    android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
+                            com.uru2904.mtracker.ui.GymScreen(db) {
+                                gymPicker.launch(arrayOf("text/*", "application/csv", "application/octet-stream"))
+                            }
+                        }
                         Tab.Cuerpo -> com.uru2904.mtracker.ui.ScaleScreen(db)
                         else -> InfoCard("${tab.label}: próximamente")
                     }

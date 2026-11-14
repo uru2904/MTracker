@@ -8,6 +8,8 @@ import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+data class SessionStats(val sessionId: Long, val volume: Double, val sets: Int, val exercises: Int)
+
 data class DayTotals(val kcal: Double, val protein: Double, val carbs: Double, val fat: Double)
 
 @Dao
@@ -96,6 +98,13 @@ interface WorkoutDao {
 
     @Query("SELECT * FROM workout ORDER BY start")
     suspend fun all(): List<WorkoutSession>
+
+    @Query("SELECT * FROM workout ORDER BY start DESC")
+    fun allFlow(): Flow<List<WorkoutSession>>
+
+    /** Volumen (kg × reps) por sesión. */
+    @Query("SELECT sessionId, COALESCE(SUM(COALESCE(weightKg,0) * COALESCE(reps,0)),0) AS volume, COUNT(*) AS sets, COUNT(DISTINCT exercise) AS exercises FROM workout_set GROUP BY sessionId")
+    fun statsFlow(): Flow<List<SessionStats>>
 
     @Query("SELECT * FROM workout_set")
     suspend fun allSets(): List<WorkoutSet>
