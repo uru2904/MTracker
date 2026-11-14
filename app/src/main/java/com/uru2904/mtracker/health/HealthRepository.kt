@@ -68,6 +68,7 @@ class HealthRepository(private val context: Context) {
     val backgroundPermission = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
 
     /** true si este teléfono soporta (y por lo tanto necesita) el permiso de lectura en segundo plano. */
+    @OptIn(androidx.health.connect.client.feature.ExperimentalFeatureAvailabilityApi::class)
     fun backgroundReadSupported(): Boolean = runCatching {
         client.features.getFeatureStatus(
             androidx.health.connect.client.HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND
