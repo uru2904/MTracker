@@ -134,7 +134,6 @@ fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
                     detail = listOfNotNull(
                         comp.bodyFatPct?.let { "Grasa ${num(Math.round(it * 10) / 10.0)} %" },
                         comp.leanKg?.let { "Masa magra ${num(Math.round(it * 10) / 10.0)} kg" },
-                        comp.boneKg?.let { "Masa ósea ${num(Math.round(it * 10) / 10.0)} kg" },
                     ).joinToString(" · "),
                 )
                 compSkipped -> Step(done = false, title = "Composición corporal", detail = "Salteada esta vez")

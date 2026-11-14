@@ -36,8 +36,8 @@ data class DailySummary(
 )
 
 /** Composición corporal medida con el reloj (Samsung la pasa a Health Connect). */
-data class Composition(val bodyFatPct: Double?, val leanKg: Double?, val boneKg: Double?, val at: Instant) {
-    val any get() = bodyFatPct != null || leanKg != null || boneKg != null
+data class Composition(val bodyFatPct: Double?, val leanKg: Double?, val at: Instant) {
+    val any get() = bodyFatPct != null || leanKg != null
 }
 
 /** Resumen de sueño de las últimas 24 horas: total y cuánto fue siesta. */
@@ -61,7 +61,6 @@ class HealthRepository(private val context: Context) {
         HealthPermission.getWritePermission(WeightRecord::class),
         HealthPermission.getReadPermission(androidx.health.connect.client.records.BodyFatRecord::class),
         HealthPermission.getReadPermission(androidx.health.connect.client.records.LeanBodyMassRecord::class),
-        HealthPermission.getReadPermission(androidx.health.connect.client.records.BoneMassRecord::class),
     )
 
     /** Permiso para leer Health Connect cuando la app no está abierta (Android 15+). */
@@ -138,17 +137,19 @@ class HealthRepository(private val context: Context) {
         val lean = runCatching {
             client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.LeanBodyMassRecord::class, range)).records.maxByOrNull { it.time }
         }.getOrNull()
-        val bone = runCatching {
-            client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.BoneMassRecord::class, range)).records.maxByOrNull { it.time }
-        }.getOrNull()
         val c = Composition(
             bodyFatPct = fat?.percentage?.value,
             leanKg = lean?.mass?.inKilograms,
-            boneKg = bone?.mass?.inKilograms,
-            at = listOfNotNull(fat?.time, lean?.time, bone?.time).maxOrNull() ?: Instant.now(),
+            at = listOfNotNull(fat?.time, lean?.time).maxOrNull() ?: Instant.now(),
         )
         return c.takeIf { it.any }
     }
+
+    /** % de grasa medidos desde [since]: (momento en ms, %). */
+    suspend fun bodyFatSince(since: Instant): List<Pair<Long, Double>> =
+        client.readRecords(
+            ReadRecordsRequest(androidx.health.connect.client.records.BodyFatRecord::class, TimeRangeFilter.after(since))
+        ).records.map { it.time.toEpochMilli() to it.percentage.value }
 
     /** Guarda un peso en Health Connect (así lo ven Samsung Health y el resumen diario). */
     suspend fun writeWeight(kg: Double, at: Instant = Instant.now()) {

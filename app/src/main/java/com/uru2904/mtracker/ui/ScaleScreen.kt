@@ -78,6 +78,15 @@ fun ScaleScreen(db: AppDatabase) {
     var dismissedKg by remember { mutableStateOf<Double?>(null) }
     var toDelete by remember { mutableStateOf<WeightEntry?>(null) }
     var detail by remember { mutableStateOf<WeightEntry?>(null) }
+    // % de grasa medido con el reloj cerca de cada pesada (de 30 min antes a 2 h después).
+    var fatByWeight by remember { mutableStateOf<Map<Long, Double>>(emptyMap()) }
+    LaunchedEffect(recent) {
+        val fats = runCatching { health.bodyFatSince(Instant.ofEpochMilli(since)) }.getOrDefault(emptyList())
+        fatByWeight = recent.mapNotNull { w ->
+            val t = w.timestamp
+            fats.filter { it.first in (t - 30 * 60_000)..(t + 2 * 3_600_000) }.maxByOrNull { it.first }?.let { w.id to it.second }
+        }.toMap()
+    }
     val locked = System.currentTimeMillis() < lockUntil
 
     /** Lectura estable: no se guarda sola, se ofrece para confirmar. */
@@ -103,6 +112,8 @@ fun ScaleScreen(db: AppDatabase) {
     }
 
     var signals by remember { mutableStateOf(0) }
+    var dots by remember { mutableStateOf(1) }
+    LaunchedEffect(scanning) { while (scanning) { kotlinx.coroutines.delay(500); dots = dots % 3 + 1 } }
     var scanError by remember { mutableStateOf<String?>(null) }
 
     fun startScan() {
@@ -152,7 +163,7 @@ fun ScaleScreen(db: AppDatabase) {
             Text(
                 when {
                     scanError != null -> scanError!!
-                    scanning -> "Escuchando · $signals señales Bluetooth"
+                    scanning -> "Escuchando" + ".".repeat(dots)
                     else -> "Sin escuchar"
                 },
                 color = if (scanError != null) Color(0xFFF2C14E) else Muted, fontSize = 12.sp,
@@ -211,7 +222,10 @@ fun ScaleScreen(db: AppDatabase) {
                 SwipeToDelete(onDelete = { toDelete = w }) {
                     Row(Modifier.fillMaxWidth().background(Card).clickable { detail = w }.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(fmt.format(Instant.ofEpochMilli(w.timestamp).atZone(ZoneId.systemDefault())), color = Soft, fontSize = 14.sp)
-                        Text("${num(w.kg)} kg", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            fatByWeight[w.id]?.let { Text("${num(Math.round(it * 10) / 10.0)} %", color = Soft, fontSize = 15.sp) }
+                            Text("${num(w.kg)} kg", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }

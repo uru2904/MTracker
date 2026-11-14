@@ -95,8 +95,7 @@ fun WeightDetailDialog(db: AppDatabase, w: WeightEntry, onClose: () -> Unit) {
                 if (c == null) Text("Todavía no hay mediciones con el reloj.", color = Muted, fontSize = 14.sp)
                 else {
                     Metric("Grasa corporal", c.bodyFatPct?.let { "${num(Math.round(it * 10) / 10.0)} %" })
-                    Metric("Masa magra", c.leanKg?.let { "${num(Math.round(it * 10) / 10.0)} kg" })
-                    Metric("Masa ósea", c.boneKg?.let { "${num(Math.round(it * 10) / 10.0)} kg" })
+                    c.leanKg?.let { Metric("Masa magra", "${num(Math.round(it * 10) / 10.0)} kg") }
                 }
             }
 
