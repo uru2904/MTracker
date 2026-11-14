@@ -36,8 +36,19 @@ def find_pdfs():
 def num(s):
     return float(s.replace(",", "."))
 
+def debug(data, group):
+    with pdfplumber.open(io.BytesIO(data)) as pdf:
+        page = pdf.pages[0]
+        ws = page.extract_words()
+        print(f"DEBUG {group}: {len(pdf.pages)} páginas, {len(ws)} palabras en la 1ra, ancho {page.width}")
+        for w in ws[:120]:
+            print("   W", repr(w["text"]), round(w["x0"]), round(w["x1"]), round(w["top"]))
+        t = page.extract_text() or ""
+        print("   TEXT", t[:1500].replace("\n", " | "))
+
 def parse_pdf(data, group):
     foods = []
+    if group == "Cereales": debug(data, group)
     with pdfplumber.open(io.BytesIO(data)) as pdf:
         for page in pdf.pages:
             words = page.extract_words(keep_blank_chars=False, use_text_flow=False)
