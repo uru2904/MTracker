@@ -16,3 +16,4 @@ keystore.properties
 secrets.properties
 *.p12
 google-services.json
+app/src/main/assets/argenfood.json
