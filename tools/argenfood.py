@@ -36,65 +36,52 @@ def find_pdfs():
 def num(s):
     return float(s.replace(",", "."))
 
-def debug(data, group):
-    with pdfplumber.open(io.BytesIO(data)) as pdf:
-        page = pdf.pages[0]
-        ws = page.extract_words()
-        print(f"DEBUG {group}: {len(pdf.pages)} páginas, {len(ws)} palabras en la 1ra, ancho {page.width}")
-        for w in ws[:120]:
-            print("   W", repr(w["text"]), round(w["x0"]), round(w["x1"]), round(w["top"]))
-        t = page.extract_text() or ""
-        print("   TEXT", t[:1500].replace("\n", " | "))
+TAGS = {"PROTCNT": "p", "FAT": "f", "CHOCDF": "ct", "CHOAVLDF": "cd", "WATER": "agua", "FIBTG": "fibra"}
 
 def parse_pdf(data, group):
+    """Usa la fila de códigos INFOODS (<ENERC>, <PROTCNT>, <FAT>, ...) para ubicar cada columna.
+    Los números están alineados a la derecha, así que se comparan por el borde derecho."""
     foods = []
-    if group == "Cereales": debug(data, group)
     with pdfplumber.open(io.BytesIO(data)) as pdf:
         for page in pdf.pages:
-            words = page.extract_words(keep_blank_chars=False, use_text_flow=False)
-            # Centros de columna según el encabezado de la página
-            cols = {}
+            words = page.extract_words()
+            cols, tag_bottom, enerc = {}, None, 0
             for w in words:
-                t = w["text"].lower()
-                x = (w["x0"] + w["x1"]) / 2
-                if "kcal" in t: cols.setdefault("kcal", x)
-                elif t.startswith("prote"): cols.setdefault("p", x)
-                elif t.startswith("grasa"): cols.setdefault("f", x)
-                elif t.startswith("totales"): cols.setdefault("ct", x)
-                elif t.startswith("disponible"): cols.setdefault("cd", x)
-                elif t.startswith("agua"): cols.setdefault("agua", x)
-                elif "(kj)" in t or t == "kj": cols.setdefault("kj", x)
+                for m in re.findall(r"<?([A-Z]+)>?", w["text"]):
+                    if not w["text"].strip().startswith(("<", ">")): continue
+                    key = None
+                    if m == "ENERC":
+                        key = "kj" if enerc == 0 else "kcal"; enerc += 1
+                    elif m in TAGS:
+                        key = TAGS[m]
+                    if key and key not in cols:
+                        cols[key] = w["x1"]
+                        tag_bottom = max(tag_bottom or 0, w["bottom"])
             if not {"kcal", "p", "f"} <= cols.keys():
                 continue
-            header_bottom = max(w["bottom"] for w in words if w["text"].lower().startswith(("prote", "grasa")))
-            first_num_x = min(v for v in cols.values()) - 25
-            # Agrupar palabras por renglón
+            name_limit = cols.get("kj", cols["kcal"]) - 30
             lines = {}
             for w in words:
-                if w["top"] <= header_bottom + 2: continue
-                key = round(w["top"] / 3)
-                lines.setdefault(key, []).append(w)
+                if w["top"] <= tag_bottom + 15: continue  # salta la fila "26*1 2*1 ..."
+                lines.setdefault(round(w["top"] / 3), []).append(w)
             for _, ws in sorted(lines.items()):
                 ws.sort(key=lambda w: w["x0"])
-                name_words = [w["text"] for w in ws if w["x1"] < first_num_x]
-                nums = [w for w in ws if w["x0"] >= first_num_x and NUM.match(w["text"])]
-                if not name_words or not nums: continue
+                name_words = [w["text"] for w in ws if w["x1"] < name_limit]
+                nums = [w for w in ws if w["x0"] >= name_limit - 10 and NUM.match(w["text"])]
+                if not name_words or len(nums) < 3: continue
                 if NUM.match(name_words[0]): name_words = name_words[1:]  # Nº
-                name = " ".join(name_words).strip(" ,")
+                name = re.sub(r"\s+,", ",", " ".join(name_words)).strip(" ,")
                 if len(name) < 3: continue
                 vals = {}
                 for w in nums:
-                    x = (w["x0"] + w["x1"]) / 2
-                    k = min(cols, key=lambda c: abs(cols[c] - x))
-                    if abs(cols[k] - x) < 22: vals.setdefault(k, num(w["text"]))
+                    k = min(cols, key=lambda c: abs(cols[c] - w["x1"]))
+                    if abs(cols[k] - w["x1"]) <= 15: vals.setdefault(k, num(w["text"]))
                 if not {"kcal", "p", "f"} <= vals.keys(): continue
                 kcal, p, f = vals["kcal"], vals["p"], vals["f"]
-                # Carbohidratos: el que mejor cierra la energía (4P + 4C + 9G)
-                cands = [vals[c] for c in ("cd", "ct") if c in vals]
-                if cands:
-                    c = min(cands, key=lambda c: abs(4 * p + 4 * c + 9 * f - kcal))
-                else:
-                    c = max(0.0, (kcal - 4 * p - 9 * f) / 4)
+                # Carbohidratos disponibles si están; si no, totales menos fibra; si no, totales.
+                if "cd" in vals: c = vals["cd"]
+                elif "ct" in vals: c = max(0.0, vals["ct"] - vals.get("fibra", 0.0))
+                else: c = max(0.0, (kcal - 4 * p - 9 * f) / 4)
                 foods.append({"name": name, "kcal": round(kcal), "p": round(p, 1), "c": round(c, 1), "f": round(f, 1), "group": group})
     return foods
 
