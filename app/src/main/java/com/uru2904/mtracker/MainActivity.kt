@@ -8,6 +8,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.MutableState
 import com.uru2904.mtracker.data.AppDatabase
+import com.uru2904.mtracker.ui.Accent
+import com.uru2904.mtracker.ui.Card
+import com.uru2904.mtracker.ui.InfoCard
+import com.uru2904.mtracker.ui.MealsScreen
+import com.uru2904.mtracker.ui.Muted
+import com.uru2904.mtracker.ui.TabBar
+import com.uru2904.mtracker.ui.Tab
+import com.uru2904.mtracker.data.FoodSeed
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import com.uru2904.mtracker.gym.HevyImporter
 import java.time.Instant
 import androidx.activity.ComponentActivity
@@ -42,15 +53,13 @@ import com.uru2904.mtracker.domain.ShiftCalendar
 import com.uru2904.mtracker.health.HealthRepository
 import com.uru2904.mtracker.health.SleepSummary
 import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val Accent = Color(0xFF1E3A8A)
-private val Card = Color(0xFF111111)
-private val Muted = Color(0xFF8A8A8A)
 
 class MainActivity : ComponentActivity() {
     private val sharedUri: MutableState<Uri?> = mutableStateOf(null)
@@ -60,7 +69,23 @@ class MainActivity : ComponentActivity() {
         val health = HealthRepository(this)
         val db = AppDatabase.get(this)
         handleIntent(intent)
-        setContent { HealthCheckScreen(health, db, sharedUri) }
+        lifecycleScope.launch { FoodSeed.ensure(db) }
+        setContent {
+            var tab by remember { mutableStateOf(Tab.Hoy) }
+            LaunchedEffect(sharedUri.value) { if (sharedUri.value != null) tab = Tab.Hoy }
+            Column(
+                Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding()
+            ) {
+                Box(Modifier.weight(1f)) {
+                    when (tab) {
+                        Tab.Hoy -> HealthCheckScreen(health, db, sharedUri)
+                        Tab.Comidas -> MealsScreen(db)
+                        else -> InfoCard("${tab.label}: próximamente")
+                    }
+                }
+                TabBar(tab) { tab = it }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -161,13 +186,13 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
         )
 
         if (!available) {
-            Box("Health Connect no está disponible en este teléfono.")
+            InfoCard("Health Connect no está disponible en este teléfono.")
             return@Column
         }
 
         val missing = granted?.let { health.permissions - it }.orEmpty()
         if (granted == null || missing.isNotEmpty()) {
-            Box(
+            InfoCard(
                 if (granted.isNullOrEmpty()) "Falta dar permisos de Health Connect."
                 else "Faltan ${missing.size} permisos de Health Connect."
             )
@@ -179,29 +204,29 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
         }
 
         data?.let { d ->
-            Box("Pasos hoy", "%,d".format(Locale("es", "AR"), d.steps))
-            Box(
+            InfoCard("Pasos hoy", "%,d".format(Locale("es", "AR"), d.steps))
+            InfoCard(
                 "Sueño últimas 24 h",
                 hm(d.sleep.total),
                 "Siesta: " + "%.1f h".format(Locale("es", "AR"), d.sleep.nap.toMinutes() / 60.0),
             )
-            Box(
+            InfoCard(
                 "Entrenamientos últimos 7 días",
                 if (d.exercises.isEmpty()) "Sin datos" else d.exercises.joinToString("\n"),
             )
         }
 
-        error?.let { Box("Error al leer Health Connect", it) }
+        error?.let { InfoCard("Error al leer Health Connect", it) }
 
         val fmtDay = DateTimeFormatter.ofPattern("EEE d/M", Locale("es", "AR"))
-        Box(
+        InfoCard(
             "Último gym (Hevy)",
             lastWorkout?.let { it.routine } ?: "Sin datos todavía",
             lastWorkout?.let {
                 fmtDay.format(Instant.ofEpochMilli(it.start).atZone(ZoneId.systemDefault())) + " · ${it.durationMin} min"
             },
         )
-        importMsg?.let { Box(it) }
+        importMsg?.let { InfoCard(it) }
         Button(
             onClick = { picker.launch(arrayOf("text/*", "application/csv", "application/octet-stream")) },
             colors = ButtonDefaults.buttonColors(containerColor = Accent),
@@ -213,21 +238,6 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
             colors = ButtonDefaults.buttonColors(containerColor = Card),
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Actualizar", color = Color.White) }
-    }
-}
-
-@Composable
-private fun Box(title: String, value: String? = null, note: String? = null) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Card, RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(title, color = if (value == null) Color.White else Muted, fontSize = 13.sp)
-        value?.let { Text(it, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) }
-        note?.let { Text(it, color = Muted, fontSize = 13.sp) }
     }
 }
 

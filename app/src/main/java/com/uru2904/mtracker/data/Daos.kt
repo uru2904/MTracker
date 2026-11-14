@@ -31,6 +31,9 @@ interface FoodDao {
     @Insert suspend fun insertAll(items: List<FoodItem>)
     @Insert suspend fun insert(item: FoodItem): Long
 
+    @Query("SELECT COUNT(*) FROM food")
+    suspend fun count(): Int
+
     @Query("SELECT * FROM food WHERE name LIKE '%' || :q || '%' ORDER BY source = 'propio' DESC, name LIMIT 50")
     suspend fun search(q: String): List<FoodItem>
 }
