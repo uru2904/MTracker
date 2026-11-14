@@ -10,6 +10,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MonitorWeight
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.MonitorWeight
+import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,23 +37,34 @@ val Card = Color(0xFF111111)
 val Muted = Color(0xFF8A8A8A)
 val Soft = Color(0xFFBDBDBD)
 
-enum class Tab(val label: String) { Hoy("Hoy"), Comidas("Comidas"), Gym("Gym"), Cuerpo("Cuerpo"), Actividad("Actividad") }
+enum class Tab(val label: String, val on: ImageVector, val off: ImageVector) {
+    Hoy("Inicio", Icons.Filled.Home, Icons.Outlined.Home),
+    Comidas("Comidas", Icons.Filled.Restaurant, Icons.Outlined.Restaurant),
+    Gym("Gym", Icons.Filled.FitnessCenter, Icons.Outlined.FitnessCenter),
+    Cuerpo("Cuerpo", Icons.Filled.MonitorWeight, Icons.Outlined.MonitorWeight),
+}
 
+/** Barra inferior estilo Hevy: ícono + texto, fondo negro, línea fina arriba. */
 @Composable
 fun TabBar(selected: Tab, onSelect: (Tab) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().height(60.dp).background(Color.Black),
-        horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Tab.entries.forEach { t ->
-            Text(
-                t.label,
-                color = if (t == selected) Color.White else Muted,
-                fontWeight = if (t == selected) FontWeight.SemiBold else FontWeight.Normal,
-                fontSize = 13.sp,
-                modifier = Modifier.clickable { onSelect(t) }.padding(horizontal = 6.dp, vertical = 12.dp),
-            )
+    Column(Modifier.fillMaxWidth().background(Color.Black)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1F1F1F)))
+        Row(
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Tab.entries.forEach { t ->
+                val sel = t == selected
+                val color = if (sel) Color.White else Muted
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f).clickable { onSelect(t) }.padding(vertical = 8.dp),
+                ) {
+                    Icon(if (sel) t.on else t.off, contentDescription = t.label, tint = color, modifier = Modifier.size(24.dp))
+                    Text(t.label, color = color, fontSize = 11.sp, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal)
+                }
+            }
         }
     }
 }
