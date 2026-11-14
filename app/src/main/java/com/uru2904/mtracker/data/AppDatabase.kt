@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FoodItem::class, MealEntry::class, WorkoutSession::class, WorkoutSet::class,
         WeightEntry::class, MeasurementType::class, MeasurementEntry::class, GoalPeriod::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -23,11 +23,23 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun goals(): GoalDao
 
     companion object {
+        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE meal ADD COLUMN remoteId TEXT")
+                db.execSQL("ALTER TABLE meal ADD COLUMN pendingOp TEXT")
+                db.execSQL("ALTER TABLE food ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+                // Lo que vino de la planilla se vuelve a traer; lo cargado a mano se sube.
+                db.execSQL("DELETE FROM meal WHERE source = 'planilla'")
+                db.execSQL("UPDATE meal SET source = 'app', pendingOp = 'add', remoteId = lower(hex(randomblob(16)))")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "mtracker.db")
                 .addCallback(Seed)
+                .addMigrations(MIGRATION_1_2)
                 .build()
                 .also { instance = it }
         }

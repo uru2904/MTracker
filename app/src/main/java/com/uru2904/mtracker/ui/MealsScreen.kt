@@ -86,7 +86,7 @@ fun MealsScreen(db: AppDatabase) {
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
         scope.launch {
             syncMsg = try {
-                "Planilla sincronizada (${sync.syncMeals(sync.tokenFromConsent(res.data))} comidas)"
+                "Planilla sincronizada (${sync.sync(sync.tokenFromConsent(res.data))} comidas)"
             } catch (e: Exception) { "No se pudo sincronizar: ${e.message}" }
             syncing = false
         }
@@ -96,7 +96,7 @@ fun MealsScreen(db: AppDatabase) {
         syncing = true
         try {
             when (val st = sync.authorize(context as Activity)) {
-                is AuthStep.Token -> { syncMsg = "Planilla sincronizada (${sync.syncMeals(st.token)} comidas)"; syncing = false }
+                is AuthStep.Token -> { syncMsg = "Planilla sincronizada (${sync.sync(st.token)} comidas)"; syncing = false }
                 is AuthStep.NeedsConsent ->
                     if (interactive) consent.launch(IntentSenderRequest.Builder(st.intent.intentSender).build())
                     else { syncMsg = "Tocá Sincronizar para dar permiso a Google"; syncing = false }
@@ -178,8 +178,16 @@ fun MealsScreen(db: AppDatabase) {
                         "${m.mealType} · ${timeFmt.format(Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()))}",
                         color = Muted, fontSize = 12.sp,
                     )
-                    if (m.source == "planilla") Text("planilla", color = Color(0xFF555555), fontSize = 12.sp)
-                    else Text("Borrar", color = Muted, fontSize = 12.sp, modifier = Modifier.clickable { scope.launch { db.meals().delete(m) } })
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (m.pendingOp == "add") Text("sin subir", color = Color(0xFFB45309), fontSize = 12.sp)
+                        Text("Borrar", color = Muted, fontSize = 12.sp, modifier = Modifier.clickable {
+                            scope.launch {
+                                if (m.pendingOp == "add") db.meals().delete(m)
+                                else db.meals().update(m.copy(pendingOp = "delete"))
+                                doSync(interactive = false)
+                            }
+                        })
+                    }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(m.description, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -240,7 +248,12 @@ fun MealsScreen(db: AppDatabase) {
                 scope.launch {
                     val ts = if (date == today) System.currentTimeMillis()
                     else date.atTime(LocalTime.NOON).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    db.meals().insert(meal.copy(timestamp = ts, logicalDate = date.toString()))
+                    db.meals().insert(
+                        meal.copy(
+                            timestamp = ts, logicalDate = date.toString(), source = "app",
+                            remoteId = java.util.UUID.randomUUID().toString(), pendingOp = "add",
+                        )
+                    )
                     if (saveAsFood) {
                         db.foods().insert(
                             FoodItem(
@@ -250,6 +263,7 @@ fun MealsScreen(db: AppDatabase) {
                         )
                     }
                     adding = false
+                    doSync(interactive = false)
                 }
             },
         )

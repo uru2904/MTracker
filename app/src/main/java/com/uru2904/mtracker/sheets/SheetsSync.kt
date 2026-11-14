@@ -8,13 +8,21 @@ import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
 import com.uru2904.mtracker.data.AppDatabase
+import com.uru2904.mtracker.data.MealEntry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 /** Resultado de pedir acceso: token listo o una pantalla de Google que el usuario tiene que aceptar. */
 sealed class AuthStep {
@@ -22,7 +30,11 @@ sealed class AuthStep {
     data class NeedsConsent(val intent: PendingIntent) : AuthStep()
 }
 
-/** Lee la pestaña Comidas de la planilla (solo lectura) y la vuelca en la base local. */
+/**
+ * Sincronización en dos direcciones con la pestaña Comidas de la planilla.
+ * La planilla es la fuente única: primero se suben los cambios pendientes de la app
+ * (altas y bajas, identificadas por la columna J = ID) y después se trae todo.
+ */
 class SheetsSync(private val context: Context, private val db: AppDatabase) {
 
     private val prefs = context.getSharedPreferences("sheets", Context.MODE_PRIVATE)
@@ -36,7 +48,7 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         private set(v) { prefs.edit().putLong("last_sync", v).apply() }
 
     private val request = AuthorizationRequest.builder()
-        .setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/spreadsheets.readonly")))
+        .setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/spreadsheets")))
         .build()
 
     suspend fun authorize(activity: Activity): AuthStep {
@@ -50,32 +62,129 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(data).accessToken
             ?: error("No se otorgó el permiso")
 
-    /** Descarga Comidas!A2:I y reemplaza las comidas que vinieron de la planilla. Devuelve cuántas quedaron. */
-    suspend fun syncMeals(token: String): Int {
+    /** Sube lo pendiente, trae la planilla y devuelve cuántas comidas hay. */
+    suspend fun sync(token: String): Int = lock.withLock {
         val id = sheetId ?: error("Falta el link de la planilla")
-        val rows = withContext(Dispatchers.IO) { fetch(id, "Comidas!A2:I", token) }
-        val meals = SheetMealParser.parse(rows)
-        db.meals().replaceSource("planilla", meals)
+        withContext(Dispatchers.IO) { pushPending(id, token) }
+        val rows = withContext(Dispatchers.IO) { get(id, "Comidas!A2:J", token) }
+        val missing = fillMissingIds(id, token, rows)
+        val meals = SheetMealParser.parse(rows.mapIndexed { i, r -> missing[i]?.let { padTo(r, 10).toMutableList().apply { set(9, it) } } ?: r })
+        db.meals().replaceSynced(meals)
         lastSync = System.currentTimeMillis()
-        return meals.size
+        meals.size
     }
 
-    private fun fetch(id: String, range: String, token: String): List<List<String>> {
-        val url = URL("https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + URLEncoder.encode(range, "UTF-8"))
-        val conn = url.openConnection() as HttpURLConnection
-        conn.setRequestProperty("Authorization", "Bearer $token")
-        conn.connectTimeout = 15000
-        conn.readTimeout = 15000
-        val code = conn.responseCode
-        val body = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-        if (code !in 200..299) {
-            val msg = runCatching { JSONObject(body).getJSONObject("error").getString("message") }.getOrDefault(body.take(200))
-            error("Google Sheets respondió $code: $msg")
+    /** Filas cargadas sin ID (por ejemplo, a mano en la planilla): se les asigna uno. */
+    private suspend fun fillMissingIds(id: String, token: String, rows: List<List<String>>): Map<Int, String> {
+        val missing = rows.withIndex()
+            .filter { (_, r) -> r.getOrNull(0)?.isNotBlank() == true && r.getOrNull(9).isNullOrBlank() }
+            .associate { (i, _) -> i to UUID.randomUUID().toString() }
+        if (missing.isEmpty()) return missing
+        val data = JSONArray()
+        missing.forEach { (i, uuid) ->
+            data.put(JSONObject().put("range", "Comidas!J${i + 2}").put("values", JSONArray().put(JSONArray().put(uuid))))
         }
-        val values = JSONObject(body).optJSONArray("values") ?: return emptyList()
+        withContext(Dispatchers.IO) {
+            send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values:batchUpdate", token,
+                JSONObject().put("valueInputOption", "RAW").put("data", data))
+        }
+        return missing
+    }
+
+    private suspend fun pushPending(id: String, token: String) {
+        val pending = db.meals().pending()
+        if (pending.isEmpty()) return
+
+        val adds = pending.filter { it.pendingOp == "add" }
+        if (adds.isNotEmpty()) {
+            val values = JSONArray()
+            adds.forEach { values.put(rowFor(it)) }
+            send(
+                "POST",
+                "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Comidas!A:J") +
+                    ":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",
+                token, JSONObject().put("values", values),
+            )
+        }
+
+        val deletes = pending.filter { it.pendingOp == "delete" }
+        if (deletes.isNotEmpty()) {
+            val ids = get(id, "Comidas!J:J", token).map { it.firstOrNull().orEmpty() }
+            val rowIdx = deletes.mapNotNull { m -> ids.indexOf(m.remoteId).takeIf { it > 0 } }.sortedDescending()
+            if (rowIdx.isNotEmpty()) {
+                val gid = tabId(id, "Comidas", token)
+                val requests = JSONArray()
+                rowIdx.forEach { r ->
+                    requests.put(JSONObject().put("deleteDimension", JSONObject().put("range",
+                        JSONObject().put("sheetId", gid).put("dimension", "ROWS").put("startIndex", r).put("endIndex", r + 1))))
+                }
+                send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id:batchUpdate", token,
+                    JSONObject().put("requests", requests))
+            }
+        }
+        // Lo subido queda como sincronizado: la lectura que sigue lo trae de vuelta desde la planilla.
+        pending.forEach { db.meals().delete(it) }
+    }
+
+    private fun rowFor(m: MealEntry): JSONArray {
+        val t = Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault())
+        return JSONArray()
+            .put(m.logicalDate)
+            .put(DateTimeFormatter.ofPattern("H:mm").format(t))
+            .put(m.mealType)
+            .put(m.description)
+            .put(Math.round(m.kcal))
+            .put(round1(m.protein))
+            .put(round1(m.carbs))
+            .put(round1(m.fat))
+            .put(m.confidence ?: "Carga manual (app)")
+            .put(m.remoteId ?: UUID.randomUUID().toString())
+    }
+
+    private fun round1(v: Double) = Math.round(v * 10) / 10.0
+    private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+    private fun padTo(r: List<String>, n: Int) = r + List((n - r.size).coerceAtLeast(0)) { "" }
+
+    private fun tabId(id: String, title: String, token: String): Int {
+        val json = send("GET", "https://sheets.googleapis.com/v4/spreadsheets/$id?fields=sheets.properties", token, null)
+        val sheets = json.getJSONArray("sheets")
+        for (i in 0 until sheets.length()) {
+            val p = sheets.getJSONObject(i).getJSONObject("properties")
+            if (p.getString("title") == title) return p.getInt("sheetId")
+        }
+        error("No encontré la pestaña $title")
+    }
+
+    private fun get(id: String, range: String, token: String): List<List<String>> {
+        val json = send("GET", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc(range), token, null)
+        val values = json.optJSONArray("values") ?: return emptyList()
         return (0 until values.length()).map { i ->
             val row = values.getJSONArray(i)
             (0 until row.length()).map { j -> row.optString(j, "") }
         }
+    }
+
+    private fun send(method: String, url: String, token: String, body: JSONObject?): JSONObject {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.requestMethod = method
+        conn.setRequestProperty("Authorization", "Bearer $token")
+        conn.connectTimeout = 15000
+        conn.readTimeout = 15000
+        if (body != null) {
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            conn.outputStream.use { it.write(body.toString().toByteArray()) }
+        }
+        val code = conn.responseCode
+        val text = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+        if (code !in 200..299) {
+            val msg = runCatching { JSONObject(text).getJSONObject("error").getString("message") }.getOrDefault(text.take(200))
+            error("Google Sheets respondió $code: $msg")
+        }
+        return if (text.isBlank()) JSONObject() else JSONObject(text)
+    }
+
+    companion object {
+        private val lock = Mutex()
     }
 }

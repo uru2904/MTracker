@@ -16,6 +16,7 @@ data class FoodItem(
     val carbs: Double,
     val fat: Double,
     val source: String, // "propio" | "argenfood"
+    val pinned: Boolean = false, // fijado arriba en la lista
 )
 
 /** Comida registrada. [logicalDate] es el día lógico (yyyy-MM-dd) según el corte del turno. */
@@ -32,7 +33,9 @@ data class MealEntry(
     val fat: Double,
     val drinks: Double? = null, // solo para alcohol, en tragos
     val confidence: String? = null, // alta | media | baja (estimaciones por chat)
-    val source: String = "manual", // manual | chat
+    val source: String = "app", // app | planilla
+    val remoteId: String? = null, // columna ID de la planilla
+    val pendingOp: String? = null, // add | delete: cambio local que falta subir a la planilla
 )
 
 /** Sesión de gym. La de Hevy CSV reemplaza a la parcial de Health Connect cuando se importa. */

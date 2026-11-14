@@ -17,7 +17,7 @@ object SheetMealParser {
     fun parse(rows: List<List<String>>, calendar: ShiftCalendar = ShiftCalendar(), zone: ZoneId = ZoneId.systemDefault()): List<MealEntry> =
         rows.mapNotNull { r ->
             val cell = { i: Int -> r.getOrNull(i)?.trim().orEmpty() }
-            val date = runCatching { LocalDate.parse(cell(0)) }.getOrNull() ?: return@mapNotNull null
+            val date = parseDate(cell(0)) ?: return@mapNotNull null
             val kcal = num(cell(4)) ?: return@mapNotNull null
             val time = parseTime(cell(1))
             val cutoff = calendar.dayCutoffFor(date)
@@ -34,10 +34,19 @@ object SheetMealParser {
                 fat = num(cell(7)) ?: 0.0,
                 confidence = cell(8).ifBlank { null },
                 source = "planilla",
+                remoteId = cell(9).ifBlank { null },
             )
         }
 
     private fun num(s: String): Double? = s.replace(',', '.').toDoubleOrNull()
+
+    /** Acepta 2026-11-14 o 14/11/2026. */
+    fun parseDate(s: String): LocalDate? {
+        runCatching { return LocalDate.parse(s) }
+        val m = Regex("^(\\d{1,2})/(\\d{1,2})/(\\d{4})$").find(s) ?: return null
+        val (d, mo, y) = m.destructured
+        return runCatching { LocalDate.of(y.toInt(), mo.toInt(), d.toInt()) }.getOrNull()
+    }
 
     private fun parseTime(s: String): LocalTime? {
         val m = Regex("^(\\d{1,2}):(\\d{2})").find(s) ?: return null

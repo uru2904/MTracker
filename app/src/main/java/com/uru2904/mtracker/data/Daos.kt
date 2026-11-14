@@ -18,21 +18,26 @@ interface MealDao {
 
     @Insert suspend fun insertAll(meals: List<MealEntry>)
 
-    @Query("DELETE FROM meal WHERE source = :source")
-    suspend fun deleteBySource(source: String)
+    @Query("SELECT * FROM meal WHERE pendingOp IS NOT NULL ORDER BY timestamp")
+    suspend fun pending(): List<MealEntry>
 
+    @Query("DELETE FROM meal WHERE pendingOp IS NULL")
+    suspend fun deleteSynced()
+
+    /** Reemplaza lo sincronizado por lo que hay en la planilla; los cambios pendientes se conservan. */
     @Transaction
-    suspend fun replaceSource(source: String, meals: List<MealEntry>) {
-        deleteBySource(source)
+    suspend fun replaceSynced(meals: List<MealEntry>) {
+        deleteSynced()
         insertAll(meals)
     }
 
-    @Query("SELECT * FROM meal WHERE logicalDate = :date ORDER BY timestamp")
+    @Query("SELECT * FROM meal WHERE logicalDate = :date AND (pendingOp IS NULL OR pendingOp != 'delete') ORDER BY timestamp")
     fun forDay(date: String): Flow<List<MealEntry>>
 
     @Query(
         "SELECT COALESCE(SUM(kcal),0) kcal, COALESCE(SUM(protein),0) protein, " +
-            "COALESCE(SUM(carbs),0) carbs, COALESCE(SUM(fat),0) fat FROM meal WHERE logicalDate = :date"
+            "COALESCE(SUM(carbs),0) carbs, COALESCE(SUM(fat),0) fat FROM meal WHERE logicalDate = :date " +
+            "AND (pendingOp IS NULL OR pendingOp != 'delete')"
     )
     fun totals(date: String): Flow<DayTotals>
 }
