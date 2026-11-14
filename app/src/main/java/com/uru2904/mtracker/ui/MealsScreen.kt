@@ -192,31 +192,43 @@ private fun field(value: String, label: String, onChange: (String) -> Unit, nume
     )
 }
 
+/** Un alimento dentro de la comida que se está armando. Valores por porción. */
+private data class Item(
+    val name: String, val portion: String,
+    val kcal: Double, val protein: Double, val carbs: Double, val fat: Double,
+    val qty: Double = 1.0,
+)
+
+/** Busca por cada palabra de 3+ letras y ordena por cuántas palabras coinciden. */
+private suspend fun searchFoods(db: AppDatabase, q: String): List<FoodItem> {
+    val words = q.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 3 }
+    if (words.isEmpty()) return emptyList()
+    val hits = words.flatMap { db.foods().search(it) }
+    return hits.groupBy { it.id }.values.sortedByDescending { it.size }.map { it.first() }
+}
+
 @Composable
 private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealEntry, Boolean) -> Unit) {
+    val scope = rememberCoroutineScope()
     var type by remember { mutableStateOf(defaultType()) }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<FoodItem>>(emptyList()) }
-    var food by remember { mutableStateOf<FoodItem?>(null) }
-    var portions by remember { mutableStateOf("1") }
-    var desc by remember { mutableStateOf("") }
-    var kcal by remember { mutableStateOf("") }
-    var prot by remember { mutableStateOf("") }
-    var carbs by remember { mutableStateOf("") }
-    var fat by remember { mutableStateOf("") }
+    val items = remember { androidx.compose.runtime.mutableStateListOf<Item>() }
+    var manual by remember { mutableStateOf(false) }
+    var mName by remember { mutableStateOf("") }
+    var mPortion by remember { mutableStateOf("") }
+    var mKcal by remember { mutableStateOf("") }
+    var mProt by remember { mutableStateOf("") }
+    var mCarbs by remember { mutableStateOf("") }
+    var mFat by remember { mutableStateOf("") }
     var drinks by remember { mutableStateOf("") }
-    var saveAsFood by remember { mutableStateOf(false) }
 
-    fun applyFood() {
-        val f = food ?: return
-        val n = parse(portions) ?: return
-        desc = if (n == 1.0) f.name else "${f.name} ×${num(n)}"
-        kcal = num(f.kcal * n); prot = num(f.protein * n); carbs = num(f.carbs * n); fat = num(f.fat * n)
-    }
+    LaunchedEffect(query) { results = searchFoods(db, query) }
 
-    LaunchedEffect(query) {
-        results = if (query.trim().length >= 2) db.foods().search(query.trim()) else emptyList()
-    }
+    val tKcal = items.sumOf { it.kcal * it.qty }
+    val tProt = items.sumOf { it.protein * it.qty }
+    val tCarbs = items.sumOf { it.carbs * it.qty }
+    val tFat = items.sumOf { it.fat * it.qty }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
@@ -240,66 +252,117 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                 }
             }
 
-            field(query, "Buscar en mis alimentos", { query = it })
-            results.take(8).forEach { f ->
+            // Lista de alimentos de la comida
+            Text(if (items.isEmpty()) "Sumá alimentos a esta comida" else "En esta comida", color = Muted, fontSize = 13.sp)
+            items.forEachIndexed { idx, it ->
+                Row(
+                    Modifier.fillMaxWidth().background(Card, RoundedCornerShape(10.dp)).padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(it.name, color = Color.White, fontSize = 15.sp)
+                        Text("${num(it.qty)} × ${it.portion} · ${(it.kcal * it.qty).toInt()} kcal · P ${num(it.protein * it.qty)}", color = Muted, fontSize = 12.sp)
+                    }
+                    Text("−", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable {
+                        if (it.qty <= 0.5) items.removeAt(idx) else items[idx] = it.copy(qty = it.qty - 0.5)
+                    }.padding(horizontal = 12.dp, vertical = 4.dp))
+                    Text("+", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable {
+                        items[idx] = it.copy(qty = it.qty + 0.5)
+                    }.padding(horizontal = 12.dp, vertical = 4.dp))
+                }
+            }
+
+            // Buscador
+            field(query, "Buscar alimento (ej: huevo, pan, leche)", { query = it })
+            results.take(6).forEach { f ->
                 Column(
                     Modifier.fillMaxWidth().background(Card, RoundedCornerShape(10.dp))
-                        .clickable { food = f; portions = "1"; query = ""; applyFood() }
+                        .clickable {
+                            items.add(Item(f.name, f.portion, f.kcal, f.protein, f.carbs, f.fat))
+                            query = ""
+                        }
                         .padding(12.dp)
                 ) {
-                    Text(f.name, color = Color.White, fontSize = 15.sp)
+                    Text("+ ${f.name}", color = Color.White, fontSize = 15.sp)
                     Text("${f.portion} · ${f.kcal.toInt()} kcal · P ${num(f.protein)}", color = Muted, fontSize = 12.sp)
                 }
             }
-            food?.let { f ->
-                Text("Alimento: ${f.name} (${f.portion})", color = AccentLight, fontSize = 13.sp)
-                field(portions, "Porciones", { portions = it; applyFood() }, numeric = true)
+            if (query.trim().length >= 3 && results.isEmpty()) {
+                Text("No está en tus alimentos. Cargalo a mano abajo.", color = Muted, fontSize = 13.sp)
             }
 
-            field(desc, "Descripción", { desc = it })
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                field(kcal, "kcal", { kcal = it }, true, Modifier.weight(1f))
-                field(prot, "Proteína g", { prot = it }, true, Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                field(carbs, "Carbos g", { carbs = it }, true, Modifier.weight(1f))
-                field(fat, "Grasas g", { fat = it }, true, Modifier.weight(1f))
-            }
-            if (type == "Alcohol") field(drinks, "Tragos", { drinks = it }, numeric = true)
-
-            if (food == null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Switch(
-                        checked = saveAsFood, onCheckedChange = { saveAsFood = it },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Accent),
-                    )
-                    Text("Guardar en mis alimentos", color = Soft, fontSize = 14.sp)
+            // Carga manual
+            if (!manual) {
+                Text(
+                    "+ Cargar a mano", color = AccentLight, fontSize = 15.sp,
+                    modifier = Modifier.clickable { manual = true; if (mName.isBlank()) mName = query }.padding(vertical = 6.dp),
+                )
+            } else {
+                Column(
+                    Modifier.fillMaxWidth().background(Card, RoundedCornerShape(12.dp)).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Alimento nuevo (queda guardado para la próxima)", color = Soft, fontSize = 13.sp)
+                    field(mName, "Nombre", { mName = it })
+                    field(mPortion, "Porción (ej: 1 plato, 100 g)", { mPortion = it })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        field(mKcal, "kcal", { mKcal = it }, true, Modifier.weight(1f))
+                        field(mProt, "Proteína g", { mProt = it }, true, Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        field(mCarbs, "Carbos g", { mCarbs = it }, true, Modifier.weight(1f))
+                        field(mFat, "Grasas g", { mFat = it }, true, Modifier.weight(1f))
+                    }
+                    val ok = mName.isNotBlank() && parse(mKcal) != null
+                    Button(
+                        onClick = {
+                            val f = FoodItem(
+                                name = mName.trim(), portion = mPortion.ifBlank { "1 porción" },
+                                kcal = parse(mKcal) ?: 0.0, protein = parse(mProt) ?: 0.0,
+                                carbs = parse(mCarbs) ?: 0.0, fat = parse(mFat) ?: 0.0, source = "propio",
+                            )
+                            scope.launch { db.foods().insert(f) }
+                            items.add(Item(f.name, f.portion, f.kcal, f.protein, f.carbs, f.fat))
+                            mName = ""; mPortion = ""; mKcal = ""; mProt = ""; mCarbs = ""; mFat = ""; manual = false
+                        },
+                        enabled = ok,
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(if (ok) "Sumar a la comida" else "Falta nombre y kcal", color = if (ok) Color.White else Muted) }
                 }
             }
 
-            val valid = desc.isNotBlank() && parse(kcal) != null
+            if (type == "Alcohol") field(drinks, "Tragos", { drinks = it }, numeric = true)
+
+            // Totales
+            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(12.dp)).padding(12.dp)) {
+                Text("Total: ${tKcal.toInt()} kcal · P ${num(tProt)} g", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Carbos ${num(tCarbs)} g · Grasas ${num(tFat)} g", color = Muted, fontSize = 13.sp)
+            }
+
+            val valid = items.isNotEmpty()
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(containerColor = Card),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).height(52.dp),
                 ) { Text("Cancelar", color = Color.White) }
                 Button(
                     onClick = {
+                        val desc = items.joinToString(" + ") { if (it.qty == 1.0) it.name else "${num(it.qty)} ${it.name}" }
                         onSave(
                             MealEntry(
-                                timestamp = 0, logicalDate = "", mealType = type, description = desc.trim(),
-                                kcal = parse(kcal) ?: 0.0, protein = parse(prot) ?: 0.0,
-                                carbs = parse(carbs) ?: 0.0, fat = parse(fat) ?: 0.0,
+                                timestamp = 0, logicalDate = "", mealType = type, description = desc,
+                                kcal = tKcal, protein = tProt, carbs = tCarbs, fat = tFat,
                                 drinks = if (type == "Alcohol") parse(drinks) else null,
                             ),
-                            saveAsFood && food == null,
+                            false,
                         )
                     },
                     enabled = valid,
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                    modifier = Modifier.weight(1f),
-                ) { Text("Guardar", color = Color.White) }
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                    modifier = Modifier.weight(1f).height(52.dp),
+                ) { Text(if (valid) "Guardar" else "Sumá un alimento", color = if (valid) Color.White else Muted) }
             }
         }
     }
