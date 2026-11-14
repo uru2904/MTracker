@@ -48,7 +48,8 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         private set(v) { prefs.edit().putLong("last_sync", v).apply() }
 
     private val request = AuthorizationRequest.builder()
-        .setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/spreadsheets")))
+        // drive.file: la app solo ve los archivos que ella misma creó (su planilla), nada más del Drive.
+        .setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/drive.file")))
         .build()
 
     suspend fun authorize(activity: Activity): AuthStep {
@@ -62,9 +63,36 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(data).accessToken
             ?: error("No se otorgó el permiso")
 
+    /** true si la planilla actual la creó la app (acceso limitado a ese archivo). */
+    private var appOwned: Boolean
+        get() = prefs.getBoolean("app_owned", false)
+        set(v) { prefs.edit().putBoolean("app_owned", v).apply() }
+
+    val sheetUrl: String? get() = sheetId?.let { "https://docs.google.com/spreadsheets/d/$it" }
+
+    /** Crea la planilla "MTracker – Datos" con la pestaña Comidas y su encabezado. */
+    private fun createSheet(token: String): String {
+        val body = JSONObject()
+            .put("properties", JSONObject().put("title", "MTracker – Datos"))
+            .put("sheets", JSONArray().put(JSONObject().put("properties", JSONObject().put("title", "Comidas"))))
+        val id = send("POST", "https://sheets.googleapis.com/v4/spreadsheets", token, body).getString("spreadsheetId")
+        val header = JSONArray().put(JSONArray()
+            .put("Fecha").put("Hora").put("Comida").put("Descripción").put("Calorías (kcal)")
+            .put("Proteína (g)").put("Carbohidratos (g)").put("Grasas (g)").put("Confianza estimación").put("ID"))
+        send("PUT", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Comidas!A1:J1") + "?valueInputOption=RAW",
+            token, JSONObject().put("values", header))
+        return id
+    }
+
     /** Sube lo pendiente, trae la planilla y devuelve cuántas comidas hay. */
     suspend fun sync(token: String): Int = lock.withLock {
-        val id = sheetId ?: error("Falta el link de la planilla")
+        if (!appOwned || sheetId == null) {
+            // Primera vez (o venía de la planilla vieja): la app crea la suya y le sube todo lo que tiene.
+            sheetId = withContext(Dispatchers.IO) { createSheet(token) }
+            appOwned = true
+            db.meals().markAllForUpload()
+        }
+        val id = sheetId!!
         withContext(Dispatchers.IO) { pushPending(id, token) }
         val rows = withContext(Dispatchers.IO) { get(id, "Comidas!A2:J", token) }
         val missing = fillMissingIds(id, token, rows)

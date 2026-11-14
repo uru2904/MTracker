@@ -21,6 +21,10 @@ interface MealDao {
     @Query("SELECT * FROM meal WHERE pendingOp IS NOT NULL ORDER BY timestamp")
     suspend fun pending(): List<MealEntry>
 
+    /** Marca todo lo sincronizado para volver a subirlo (al pasar a una planilla nueva). */
+    @Query("UPDATE meal SET pendingOp = 'add' WHERE pendingOp IS NULL")
+    suspend fun markAllForUpload()
+
     @Query("DELETE FROM meal WHERE pendingOp IS NULL")
     suspend fun deleteSynced()
 

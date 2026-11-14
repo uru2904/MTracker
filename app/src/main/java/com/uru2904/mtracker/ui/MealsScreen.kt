@@ -86,7 +86,6 @@ fun MealsScreen(db: AppDatabase) {
     val context = LocalContext.current
     val sync = remember { SheetsSync(context, db) }
     var syncMsg by remember { mutableStateOf<String?>(null) }
-    var askLink by remember { mutableStateOf(false) }
     var syncing by remember { mutableStateOf(false) }
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
         scope.launch {
@@ -97,7 +96,6 @@ fun MealsScreen(db: AppDatabase) {
         }
     }
     suspend fun doSync(interactive: Boolean) {
-        if (sync.sheetId == null) { syncMsg = null; return }
         syncing = true
         try {
             when (val st = sync.authorize(context as Activity)) {
@@ -110,7 +108,7 @@ fun MealsScreen(db: AppDatabase) {
             syncMsg = "No se pudo sincronizar: ${e.message}"; syncing = false
         }
     }
-    LaunchedEffect(Unit) { doSync(interactive = false) }
+    LaunchedEffect(Unit) { if (sync.sheetId != null) doSync(interactive = false) }
 
     val kcalT = goal?.kcalTarget ?: 2250
     val protT = goal?.proteinTarget ?: 150
@@ -153,7 +151,12 @@ fun MealsScreen(db: AppDatabase) {
             )
             if (sync.sheetId == null) Text(
                 "Conectar", color = AccentLight, fontSize = 13.sp,
-                modifier = Modifier.clickable { askLink = true }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+                modifier = Modifier.clickable { scope.launch { doSync(interactive = true) } }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+            ) else Text(
+                "Abrir", color = AccentLight, fontSize = 13.sp,
+                modifier = Modifier.clickable {
+                    sync.sheetUrl?.let { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(it))) }
+                }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
             )
         }
 
@@ -230,31 +233,6 @@ fun MealsScreen(db: AppDatabase) {
     }
 
     if (showFoods) FoodsDialog(db) { showFoods = false }
-
-    if (askLink) {
-        var link by remember { mutableStateOf("") }
-        val id = SheetMealParser.sheetIdFrom(link)
-        Dialog(onDismissRequest = { askLink = false }) {
-            Column(
-                Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(16.dp)).padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("Conectar planilla", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("Pegá el link de la planilla de Google Sheets donde Claude carga tus comidas.", color = Soft, fontSize = 14.sp)
-                field(link, "Link de la planilla", { link = it })
-                Button(
-                    onClick = {
-                        sync.sheetId = id
-                        askLink = false
-                        scope.launch { doSync(interactive = true) }
-                    },
-                    enabled = id != null,
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (id != null) "Conectar" else "Pegá un link válido", color = if (id != null) Color.White else Muted) }
-            }
-        }
-    }
 
     if (adding) {
         AddMealDialog(
