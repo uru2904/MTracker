@@ -33,6 +33,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -105,7 +107,16 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
             sessions.filter { val d = dateOf(it); !d.isBefore(monday) && d.isBefore(monday.plusWeeks(1)) }
                 .sumOf { statsById[it.id]?.volume ?: 0.0 }
         }
+        val counts = weeks.map { monday ->
+            sessions.count { val d = dateOf(it); !d.isBefore(monday) && d.isBefore(monday.plusWeeks(1)) }
+        }
         var selected by remember { mutableStateOf(weeks.size - 1) }
+        val countPaint = remember {
+            android.graphics.Paint().apply {
+                isAntiAlias = true; textAlign = android.graphics.Paint.Align.CENTER
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+        }
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)
                 .background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
@@ -114,7 +125,7 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Volumen semanal", color = Muted, fontSize = 13.sp)
                 Text(
-                    (if (selected == weeks.size - 1) "Actual" else "Semana del " + DateTimeFormatter.ofPattern("d/M").format(weeks[selected])) +
+                    (if (selected == weeks.size - 1) "Actual" else "Sem. del " + DateTimeFormatter.ofPattern("d/M").format(weeks[selected])) +
                         ": %,d kg".format(es, volumes[selected].toLong()),
                     color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                 )
@@ -140,6 +151,7 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
                         val y = size.height * f
                         drawLine(Color(0xFF242424), Offset(0f, y), Offset(size.width, y), 1f)
                     }
+                    countPaint.textSize = 11.sp.toPx()
                     volumes.forEachIndexed { i, v ->
                         val h = (v / max * size.height).toFloat().coerceAtLeast(if (v > 0) 4f else 2f)
                         drawRoundRect(
@@ -148,6 +160,13 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
                             size = Size(w, h),
                             cornerRadius = CornerRadius(6f, 6f),
                         )
+                        // Cantidad de entrenamientos de la semana, en la base de la barra
+                        if (counts[i] > 0) {
+                            val inside = h >= 18.dp.toPx()
+                            countPaint.color = (if (inside) (if (i == selected) Color.Black else Color.White) else Muted).toArgb()
+                            val y = if (inside) size.height - 5.dp.toPx() else size.height - h - 4.dp.toPx()
+                            drawContext.canvas.nativeCanvas.drawText("${counts[i]}", i * (w + gap) + w / 2, y, countPaint)
+                        }
                     }
                 }
             }
