@@ -233,13 +233,6 @@ fun ScaleScreen(db: AppDatabase) {
             if (recent.isEmpty()) Text("Todavía no hay pesadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(14.dp))
         }
 
-        // Diagnóstico: datos crudos de Bluetooth, para ajustar si la balanza no se reconoce.
-        Text(
-            if (showRaw) "Ocultar datos técnicos" else "Ver datos técnicos (${raw.size})",
-            color = Muted, fontSize = 12.sp,
-            modifier = Modifier.padding(top = 8.dp).clickable { showRaw = !showRaw },
-        )
-        if (showRaw) raw.reversed().forEach { Text(it, color = Color(0xFF6B6B6B), fontSize = 11.sp) }
     }
 
     weighed?.let { w -> WeighInDialog(db, w) { weighed = null } }
