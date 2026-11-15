@@ -95,9 +95,9 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
             Indicator(
                 Modifier.weight(1f), "Desde el último",
                 daysSince?.let { if (it == 0) "Hoy" else if (it == 1) "1 día" else "$it días" } ?: "–",
-                when { daysSince == null -> Muted; daysSince <= 2 -> Green; daysSince == 3 -> Yellow; else -> Red },
+                when { daysSince == null -> Color.White; daysSince <= 2 -> Green; daysSince == 3 -> Yellow; else -> Red },
             )
-            Indicator(Modifier.weight(1f), "Próxima rutina", next, AccentLight)
+            Indicator(Modifier.weight(1f), "Próxima rutina", next, Color.White)
         }
 
         // ---- Fijo: volumen semanal (8 semanas), tocar una barra la selecciona ----
@@ -230,9 +230,9 @@ private fun Indicator(modifier: Modifier, label: String, value: String, color: C
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
-        Box(Modifier.size(10.dp).background(color, CircleShape))
+        // Estilo Whoop: el color del estado va en el número, sin punto.
         Text(label, color = Muted, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Text(value, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(value, color = color, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
