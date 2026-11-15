@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -53,7 +56,7 @@ private val Red = Color(0xFFF87171)
 private val es = Locale("es", "AR")
 private const val WEEKLY_TARGET = 3
 
-/** Pantalla Gym (estilo Weights): semáforos, volumen semanal e historial de sesiones con detalle. */
+/** Pantalla Gym (estilo Weights): semáforos y volumen fijos arriba; solo el historial se desplaza. */
 @Composable
 fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
     val sessions by db.workouts().allFlow().collectAsState(initial = emptyList())
@@ -73,74 +76,101 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
             Text("Importar CSV", color = AccentLight, fontSize = 14.sp, modifier = Modifier.clickable { onImport() }.padding(8.dp))
         }
 
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        // ---- Fijo: semáforos ----
+        val last7 = sessions.count { ChronoUnit.DAYS.between(dateOf(it), today) in 0..6 }
+        val daysSince = sessions.firstOrNull()?.let { ChronoUnit.DAYS.between(dateOf(it), today).toInt() }
+        val rotation = listOf("Full A", "Full B", "Full C")
+        val lastFull = sessions.firstOrNull { it.routine in rotation }?.routine
+        val next = lastFull?.let { rotation[(rotation.indexOf(it) + 1) % 3] } ?: "Full A"
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(androidx.compose.foundation.layout.IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // Semáforos
-            val last7 = sessions.count { ChronoUnit.DAYS.between(dateOf(it), today) in 0..6 }
-            val daysSince = sessions.firstOrNull()?.let { ChronoUnit.DAYS.between(dateOf(it), today).toInt() }
-            val rotation = listOf("Full A", "Full B", "Full C")
-            val lastFull = sessions.firstOrNull { it.routine in rotation }?.routine
-            val next = lastFull?.let { rotation[(rotation.indexOf(it) + 1) % 3] } ?: "Full A"
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Indicator(
-                    Modifier.weight(1f), "Últimos 7 días", "$last7 / $WEEKLY_TARGET",
-                    when { last7 >= WEEKLY_TARGET -> Green; last7 == WEEKLY_TARGET - 1 -> Yellow; else -> Red },
-                )
-                Indicator(
-                    Modifier.weight(1f), "Desde el último",
-                    daysSince?.let { if (it == 0) "Hoy" else if (it == 1) "1 día" else "$it días" } ?: "–",
-                    when { daysSince == null -> Muted; daysSince <= 2 -> Green; daysSince == 3 -> Yellow; else -> Red },
-                )
-                Indicator(Modifier.weight(1f), "Próxima", next, AccentLight)
-            }
+            Indicator(
+                Modifier.weight(1f), "Últimos 7 días", "$last7 / $WEEKLY_TARGET",
+                when { last7 >= WEEKLY_TARGET -> Green; last7 == WEEKLY_TARGET - 1 -> Yellow; else -> Red },
+            )
+            Indicator(
+                Modifier.weight(1f), "Desde el último",
+                daysSince?.let { if (it == 0) "Hoy" else if (it == 1) "1 día" else "$it días" } ?: "–",
+                when { daysSince == null -> Muted; daysSince <= 2 -> Green; daysSince == 3 -> Yellow; else -> Red },
+            )
+            Indicator(Modifier.weight(1f), "Próxima rutina", next, AccentLight)
+        }
 
-            // Volumen semanal (últimas 8 semanas)
-            val thisMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            val weeks = (7 downTo 0).map { thisMonday.minusWeeks(it.toLong()) }
-            val volumes = weeks.map { monday ->
-                sessions.filter { val d = dateOf(it); !d.isBefore(monday) && d.isBefore(monday.plusWeeks(1)) }
-                    .sumOf { statsById[it.id]?.volume ?: 0.0 }
+        // ---- Fijo: volumen semanal (8 semanas), tocar una barra la selecciona ----
+        val thisMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val weeks = (7 downTo 0).map { thisMonday.minusWeeks(it.toLong()) }
+        val volumes = weeks.map { monday ->
+            sessions.filter { val d = dateOf(it); !d.isBefore(monday) && d.isBefore(monday.plusWeeks(1)) }
+                .sumOf { statsById[it.id]?.volume ?: 0.0 }
+        }
+        var selected by remember { mutableStateOf(weeks.size - 1) }
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)
+                .background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Volumen semanal", color = Muted, fontSize = 13.sp)
+                Text(
+                    (if (selected == weeks.size - 1) "Actual" else "Semana del " + DateTimeFormatter.ofPattern("d/M").format(weeks[selected])) +
+                        ": %,d kg".format(es, volumes[selected].toLong()),
+                    color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                )
             }
-            Column(
-                Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Volumen semanal", color = Muted, fontSize = 13.sp)
-                    Text("Esta semana: %,d kg".format(es, volumes.last().toLong()), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            val max = niceMax(volumes.maxOrNull() ?: 0.0)
+            Row(Modifier.fillMaxWidth().height(130.dp)) {
+                // Eje vertical
+                Column(Modifier.fillMaxHeight().padding(end = 6.dp), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.End) {
+                    listOf(max, max / 2, 0.0).forEach { Text(kLabel(it), color = Muted, fontSize = 10.sp) }
                 }
-                val max = (volumes.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
-                Canvas(Modifier.fillMaxWidth().height(120.dp)) {
+                Canvas(
+                    Modifier.weight(1f).fillMaxHeight().pointerInput(volumes.size) {
+                        detectTapGestures { pos ->
+                            val slot = size.width / volumes.size
+                            selected = (pos.x / slot).toInt().coerceIn(0, volumes.size - 1)
+                        }
+                    }
+                ) {
                     val n = volumes.size
                     val gap = 10.dp.toPx()
                     val w = (size.width - gap * (n - 1)) / n
+                    listOf(0f, 0.5f, 1f).forEach { f ->
+                        val y = size.height * f
+                        drawLine(Color(0xFF242424), Offset(0f, y), Offset(size.width, y), 1f)
+                    }
                     volumes.forEachIndexed { i, v ->
                         val h = (v / max * size.height).toFloat().coerceAtLeast(if (v > 0) 4f else 2f)
                         drawRoundRect(
-                            color = if (i == n - 1) AccentLight else Color(0xFF2E2E2E),
+                            color = if (i == selected) AccentLight else Color(0xFF3A3A3A),
                             topLeft = Offset(i * (w + gap), size.height - h),
                             size = Size(w, h),
                             cornerRadius = CornerRadius(6f, 6f),
                         )
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    weeks.forEachIndexed { i, m ->
-                        Text(
-                            if (i == weeks.size - 1) "Esta" else DateTimeFormatter.ofPattern("d/M").format(m),
-                            color = Muted, fontSize = 10.sp,
-                        )
-                    }
+            }
+            Row(Modifier.fillMaxWidth().padding(start = 34.dp)) {
+                weeks.forEachIndexed { i, m ->
+                    Text(
+                        if (i == weeks.size - 1) "Actual" else DateTimeFormatter.ofPattern("d/M").format(m),
+                        color = if (i == selected) Color.White else Muted, fontSize = 10.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
+        }
 
-            // Historial
-            Text("Historial", color = Muted, fontSize = 13.sp)
+        // ---- Se desplaza: historial ----
+        Text("Historial", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+        Column(
+            Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 16.dp),
+        ) {
             if (sessions.isEmpty()) Text("Todavía no hay sesiones. Importá el CSV de Hevy.", color = Muted, fontSize = 14.sp)
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
-                sessions.take(60).forEachIndexed { i, w ->
+                sessions.take(100).forEachIndexed { i, w ->
                     if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Color(0xFF1F1F1F)))
                     val st = statsById[w.id]
                     Row(
@@ -165,17 +195,25 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
     detail?.let { w -> SessionDetail(db, w) { detail = null } }
 }
 
+/** Máximo "redondo" para el eje (ej.: 13.851 -> 15.000). */
+private fun niceMax(v: Double): Double {
+    if (v <= 0) return 1000.0
+    val step = when { v <= 5000 -> 1000.0; v <= 20000 -> 2500.0; else -> 5000.0 }
+    return Math.ceil(v / step) * step
+}
+
+private fun kLabel(v: Double): String = if (v == 0.0) "0" else if (v >= 1000) "${num(Math.round(v / 100) / 10.0)}k" else "${v.toInt()}"
+
 @Composable
 private fun Indicator(modifier: Modifier, label: String, value: String, color: Color) {
     Column(
-        modifier.background(Card, RoundedCornerShape(14.dp)).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier.fillMaxHeight().background(Card, RoundedCornerShape(14.dp)).padding(vertical = 14.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(8.dp).background(color, CircleShape))
-            Text(label, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(start = 6.dp))
-        }
-        Text(value, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Box(Modifier.size(10.dp).background(color, CircleShape))
+        Text(label, color = Muted, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(value, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
