@@ -75,9 +75,10 @@ fun SleepScreen() {
     val scope = rememberCoroutineScope()
     val health = remember { HealthRepository(context) }
     val calendar = remember { ShiftCalendar() }
-    var nights by remember { mutableStateOf<List<SleepNight>?>(null) }
+    @Suppress("UNCHECKED_CAST")
+    var nights by remember { mutableStateOf(com.uru2904.mtracker.data.UiCache.sleepNights as? List<SleepNight>) }
     var error by remember { mutableStateOf<String?>(null) }
-    var selected by remember { mutableStateOf<LocalDate?>(null) }
+    var selected by remember { mutableStateOf(nights?.firstOrNull()?.date) }
     var vitals by remember { mutableStateOf<SleepVitals?>(null) }
     var pulling by remember { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
@@ -85,6 +86,7 @@ fun SleepScreen() {
     suspend fun load() {
         try {
             nights = health.sleepNights(30)
+            com.uru2904.mtracker.data.UiCache.sleepNights = nights
             if (selected == null || nights!!.none { it.date == selected }) selected = nights!!.firstOrNull()?.date
             error = null
         } catch (e: Exception) { error = "No pude leer el sueño de Health Connect: ${e.message}" }

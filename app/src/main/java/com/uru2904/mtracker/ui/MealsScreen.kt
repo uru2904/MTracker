@@ -80,9 +80,9 @@ fun MealsScreen(db: AppDatabase) {
     val today = remember { calendar.logicalDate(LocalDateTime.now()) }
     var date by remember { mutableStateOf(today) }
     val key = date.toString()
-    val meals by db.meals().forDay(key).collectAsState(initial = emptyList())
-    val totals by db.meals().totals(key).collectAsState(initial = DayTotals(0.0, 0.0, 0.0, 0.0))
-    val goal by db.goals().activeOn(today.toString()).collectAsState(initial = null)
+    val meals by com.uru2904.mtracker.data.Live.meals(db, key).collectAsState()
+    val totals by com.uru2904.mtracker.data.Live.totals(db, key).collectAsState()
+    val goal by com.uru2904.mtracker.data.Live.goal(db, today.toString()).collectAsState()
     var adding by remember { mutableStateOf(false) }
     var showFoods by remember { mutableStateOf(false) }
     var toDelete by remember { mutableStateOf<MealEntry?>(null) }
@@ -323,7 +323,7 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
     var drinks by remember { mutableStateOf("") }
 
     LaunchedEffect(query) { results = searchFoods(db, query) }
-    val allFoods by db.foods().all().collectAsState(initial = emptyList())
+    val allFoods by com.uru2904.mtracker.data.Live.foods(db).collectAsState()
     var editingFood by remember { mutableStateOf<FoodItem?>(null) }
 
     val tKcal = items.sumOf { it.kcal * it.qty }
@@ -534,7 +534,7 @@ private fun PortionChips(onPick: (String) -> Unit) {
 /** Lista de todos los alimentos de la base, con búsqueda, edición y borrado. */
 @Composable
 private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
-    val all by db.foods().all().collectAsState(initial = emptyList())
+    val all by com.uru2904.mtracker.data.Live.foods(db).collectAsState()
     var filter by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<FoodItem?>(null) }
     var creating by remember { mutableStateOf(false) }

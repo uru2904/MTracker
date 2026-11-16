@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
         val db = AppDatabase.get(this)
         handleIntent(intent)
         com.uru2904.mtracker.sync.SyncWorker.schedule(this)
+        com.uru2904.mtracker.data.Live.warmUp(db, com.uru2904.mtracker.domain.ShiftCalendar().logicalDate(java.time.LocalDateTime.now()).toString())
         lifecycleScope.launch {
             FoodSeed.ensure(db)
             runCatching { FoodSeed.loadArgenfood(db, this@MainActivity) }
@@ -140,7 +141,7 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     var importMsg by remember { mutableStateOf<String?>(null) }
-    val lastWorkout by db.workouts().last().collectAsState(initial = null)
+    val lastWorkout by com.uru2904.mtracker.data.Live.lastWorkout(db).collectAsState()
 
     suspend fun importUri(uri: Uri) {
         importMsg = try {
@@ -160,8 +161,8 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
     LaunchedEffect(sharedUri.value) {
         sharedUri.value?.let { importUri(it); sharedUri.value = null }
     }
-    var granted by remember { mutableStateOf<Set<String>?>(null) }
-    var data by remember { mutableStateOf<HealthData?>(null) }
+    var granted by remember { mutableStateOf(com.uru2904.mtracker.data.UiCache.granted) }
+    var data by remember { mutableStateOf(com.uru2904.mtracker.data.UiCache.inicio as? HealthData) }
     var error by remember { mutableStateOf<String?>(null) }
     val available = remember { health.isAvailable() }
     val calendar = remember { ShiftCalendar() }
@@ -169,6 +170,7 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
     suspend fun refresh() {
         try {
             granted = health.grantedPermissions()
+            com.uru2904.mtracker.data.UiCache.granted = granted
             if (granted!!.isNotEmpty()) {
                 val fmt = DateTimeFormatter.ofPattern("EEE d/M HH:mm", Locale("es", "AR"))
                 data = HealthData(
@@ -180,6 +182,7 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
                         "${fmt.format(start)} · ${HealthRepository.exerciseName(it.exerciseType)} · $min min"
                     },
                 )
+                com.uru2904.mtracker.data.UiCache.inicio = data
             }
             error = null
         } catch (e: Exception) {

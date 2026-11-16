@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MTracker: una "M" blanca cuyo trazo central (azul) baja y sube como una línea de progreso. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M33,72 L33,38 M75,38 L75,72" android:strokeColor="#FFFFFF"
+        android:strokeWidth="8" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M33,38 L54,61 L75,38" android:strokeColor="#FFFFFF"
+        android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" />
+</vector>

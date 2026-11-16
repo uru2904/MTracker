@@ -61,8 +61,8 @@ private const val WEEKLY_TARGET = 3
 /** Pantalla Gym (estilo Weights): semáforos y volumen fijos arriba; solo el historial se desplaza. */
 @Composable
 fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
-    val sessions by db.workouts().allFlow().collectAsState(initial = emptyList())
-    val stats by db.workouts().statsFlow().collectAsState(initial = emptyList())
+    val sessions by com.uru2904.mtracker.data.Live.gymSessions(db).collectAsState()
+    val stats by com.uru2904.mtracker.data.Live.gymStats(db).collectAsState()
     val statsById = stats.associateBy { it.sessionId }
     var detail by remember { mutableStateOf<WorkoutSession?>(null) }
     val zone = ZoneId.systemDefault()

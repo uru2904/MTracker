@@ -74,8 +74,8 @@ fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val health = remember { HealthRepository(context) }
     val sync = remember { SheetsSync(context, db) }
-    val recent by db.weights().since(System.currentTimeMillis() - 30L * 86_400_000).collectAsState(initial = emptyList())
-    val goal by db.goals().activeOn(LocalDate.now().toString()).collectAsState(initial = null)
+    val recent by com.uru2904.mtracker.data.Live.weightsSince(db, com.uru2904.mtracker.data.Live.daysAgo(30)).collectAsState()
+    val goal by com.uru2904.mtracker.data.Live.goal(db, LocalDate.now().toString()).collectAsState()
 
     // Composición: se busca en Health Connect cada 5 s durante 10 minutos.
     var composition by remember { mutableStateOf<Composition?>(null) }

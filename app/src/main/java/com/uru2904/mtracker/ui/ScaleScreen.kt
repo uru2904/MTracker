@@ -85,8 +85,8 @@ fun ScaleScreen(db: AppDatabase) {
     val raw = remember { mutableStateListOf<String>() }
     var showRaw by remember { mutableStateOf(false) }
     var weighed by remember { mutableStateOf<WeightEntry?>(null) }
-    val since = remember { System.currentTimeMillis() - 30L * 86_400_000 }
-    val recent by db.weights().since(since).collectAsState(initial = emptyList())
+    val since = remember { com.uru2904.mtracker.data.Live.daysAgo(30) }
+    val recent by com.uru2904.mtracker.data.Live.weightsSince(db, since).collectAsState()
 
     val perms = if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN)
     else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -99,13 +99,14 @@ fun ScaleScreen(db: AppDatabase) {
     var toDelete by remember { mutableStateOf<WeightEntry?>(null) }
     var detail by remember { mutableStateOf<WeightEntry?>(null) }
     // % de grasa medido con el reloj cerca de cada pesada (de 30 min antes a 2 h después).
-    var fatByWeight by remember { mutableStateOf<Map<Long, Double>>(emptyMap()) }
+    var fatByWeight by remember { mutableStateOf(com.uru2904.mtracker.data.UiCache.fatByWeight) }
     LaunchedEffect(recent) {
         val fats = runCatching { health.bodyFatSince(Instant.ofEpochMilli(since)) }.getOrDefault(emptyList())
         fatByWeight = recent.mapNotNull { w ->
             val t = w.timestamp
             fats.filter { it.first in (t - 30 * 60_000)..(t + 2 * 3_600_000) }.maxByOrNull { it.first }?.let { w.id to it.second }
         }.toMap()
+        com.uru2904.mtracker.data.UiCache.fatByWeight = fatByWeight
     }
     val locked = System.currentTimeMillis() < lockUntil
 
@@ -164,12 +165,12 @@ fun ScaleScreen(db: AppDatabase) {
     DisposableEffect(Unit) { onDispose { scanner.stop() } }
 
     // ---- Datos de la pantalla Cuerpo ----
-    val chartSince = remember { System.currentTimeMillis() - 365L * 86_400_000 }
+    val chartSince = remember { com.uru2904.mtracker.data.Live.daysAgo(365) }
     LaunchedEffect(Unit) { runCatching { com.uru2904.mtracker.sync.WeightImport.run(context, db, health) } }
-    val weights90 by db.weights().since(chartSince).collectAsState(initial = emptyList())
-    val types by db.measurements().activeTypes().collectAsState(initial = emptyList())
-    val measures by db.measurements().allFlow().collectAsState(initial = emptyList())
-    val goal by db.goals().activeOn(LocalDate.now().toString()).collectAsState(initial = null)
+    val weights90 by com.uru2904.mtracker.data.Live.weightsSince(db, chartSince).collectAsState()
+    val types by com.uru2904.mtracker.data.Live.types(db).collectAsState()
+    val measures by com.uru2904.mtracker.data.Live.measures(db).collectAsState()
+    val goal by com.uru2904.mtracker.data.Live.goal(db, LocalDate.now().toString()).collectAsState()
     var selectedType by remember { mutableStateOf<Long?>(null) } // null = peso
     var addMeasures by remember { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
