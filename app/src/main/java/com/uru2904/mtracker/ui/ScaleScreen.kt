@@ -2,6 +2,9 @@ package com.uru2904.mtracker.ui
 
 import android.Manifest
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
@@ -217,13 +220,10 @@ fun ScaleScreen(db: AppDatabase) {
             ) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(if (selType == null) "Peso" else selType.name, color = Muted, fontSize = 13.sp)
-                    points.lastOrNull()?.let {
-                        Text("${num(it.second)} ${if (selType == null) "kg" else "cm"}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    }
                 }
                 if (points.size < 2) Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                     Text(if (points.isEmpty()) "Sin datos todavía" else "Hace falta más de una medición para el gráfico", color = Muted, fontSize = 13.sp)
-                } else LineChart(points, if (selType == null) target else null)
+                } else LineChart(points, if (selType == null) target else null, if (selType == null) "kg" else "cm")
                 if (points.size >= 2) Row(Modifier.fillMaxWidth().padding(start = 34.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     val f = DateTimeFormatter.ofPattern("d/M")
                     Text(f.format(Instant.ofEpochMilli(points.first().first).atZone(zone)), color = Muted, fontSize = 10.sp)
@@ -389,15 +389,29 @@ fun ScaleScreen(db: AppDatabase) {
 }
 
 
-/** Línea con puntos; eje vertical con mínimo y máximo; línea punteada = objetivo. */
+/**
+ * Línea con puntos, interactiva: tocar o arrastrar selecciona el punto más cercano
+ * (línea vertical + valor y fecha arriba). Por defecto, el último.
+ */
 @Composable
-private fun LineChart(points: List<Pair<Long, Double>>, target: Double?) {
+private fun LineChart(points: List<Pair<Long, Double>>, target: Double?, unit: String) {
     val values = points.map { it.second } + listOfNotNull(target)
     val lo = values.minOrNull()!!; val hi = values.maxOrNull()!!
     val pad = ((hi - lo) * 0.15).coerceAtLeast(0.5)
     val min = lo - pad; val max = hi + pad
     val t0 = points.first().first; val t1 = points.last().first
-    Row(Modifier.fillMaxWidth().height(130.dp)) {
+    var sel by remember(points) { mutableStateOf(points.lastIndex) }
+    val zone = ZoneId.systemDefault()
+    val p = points[sel.coerceIn(0, points.lastIndex)]
+
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+        Text(
+            DateTimeFormatter.ofPattern("EEE d/M/yy", Locale("es", "AR")).format(Instant.ofEpochMilli(p.first).atZone(zone)),
+            color = Muted, fontSize = 13.sp,
+        )
+        Text("${num(Math.round(p.second * 10) / 10.0)} $unit", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    }
+    Row(Modifier.fillMaxWidth().height(150.dp)) {
         Column(
             Modifier.fillMaxHeight().padding(end = 6.dp).width(28.dp),
             verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.End,
@@ -405,7 +419,29 @@ private fun LineChart(points: List<Pair<Long, Double>>, target: Double?) {
             Text(num(Math.round(max * 10) / 10.0), color = Muted, fontSize = 10.sp)
             Text(num(Math.round(min * 10) / 10.0), color = Muted, fontSize = 10.sp)
         }
-        Canvas(Modifier.weight(1f).fillMaxHeight()) {
+        Canvas(
+            Modifier.weight(1f).fillMaxHeight()
+                .pointerInput(points) {
+                    fun pick(x: Float) {
+                        val w = size.width.toFloat()
+                        sel = points.indices.minByOrNull { i ->
+                            val px = if (t1 == t0) w / 2 else ((points[i].first - t0).toFloat() / (t1 - t0)) * w
+                            kotlin.math.abs(px - x)
+                        } ?: sel
+                    }
+                    detectTapGestures { pick(it.x) }
+                }
+                .pointerInput(points) {
+                    fun pick(x: Float) {
+                        val w = size.width.toFloat()
+                        sel = points.indices.minByOrNull { i ->
+                            val px = if (t1 == t0) w / 2 else ((points[i].first - t0).toFloat() / (t1 - t0)) * w
+                            kotlin.math.abs(px - x)
+                        } ?: sel
+                    }
+                    detectHorizontalDragGestures(onDragStart = { pick(it.x) }) { change, _ -> pick(change.position.x) }
+                }
+        ) {
             fun x(t: Long) = if (t1 == t0) size.width / 2 else ((t - t0).toFloat() / (t1 - t0)) * size.width
             fun y(v: Double) = (size.height * (1 - (v - min) / (max - min))).toFloat()
             listOf(0f, 0.5f, 1f).forEach { f -> drawLine(Color(0xFF242424), Offset(0f, size.height * f), Offset(size.width, size.height * f), 1f) }
@@ -415,8 +451,13 @@ private fun LineChart(points: List<Pair<Long, Double>>, target: Double?) {
             }
             val path = Path()
             points.forEachIndexed { i, (t, v) -> if (i == 0) path.moveTo(x(t), y(v)) else path.lineTo(x(t), y(v)) }
-            drawPath(path, AccentLight, style = Stroke(width = 4f))
-            points.forEach { (t, v) -> drawCircle(AccentLight, 5f, Offset(x(t), y(v))) }
+            drawPath(path, AccentLight, style = Stroke(width = 3f))
+            points.forEach { (t, v) -> drawCircle(AccentLight.copy(alpha = 0.6f), 3.5f, Offset(x(t), y(v))) }
+            // Selección
+            val sx = x(p.first); val sy = y(p.second)
+            drawLine(Color(0xFF666666), Offset(sx, 0f), Offset(sx, size.height), 2f)
+            drawCircle(Color.Black, 9f, Offset(sx, sy))
+            drawCircle(Color.White, 7f, Offset(sx, sy))
         }
     }
 }
