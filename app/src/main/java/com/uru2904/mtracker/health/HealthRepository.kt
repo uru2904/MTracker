@@ -40,6 +40,9 @@ data class Composition(val bodyFatPct: Double?, val leanKg: Double?, val at: Ins
     val any get() = bodyFatPct != null || leanKg != null
 }
 
+/** Promedio de sueño por día (total y siesta, en horas) sobre los días con datos. */
+data class SleepAverage(val totalH: Double, val napH: Double, val days: Int)
+
 /** Resumen de sueño de las últimas 24 horas: total y cuánto fue siesta. */
 data class SleepSummary(val total: Duration, val nap: Duration)
 
@@ -113,6 +116,20 @@ class HealthRepository(private val context: Context) {
         val total = durations.fold(Duration.ZERO, Duration::plus)
         val main = durations.maxOrNull() ?: Duration.ZERO
         return SleepSummary(total = total, nap = total.minus(main))
+    }
+
+    /** Promedio de los últimos [days] días: sesiones agrupadas por el día en que terminaron; la más larga es el sueño principal. */
+    suspend fun sleepAverage(days: Int = 7): SleepAverage? {
+        val start = LocalDate.now().minusDays((days - 1).toLong()).atStartOfDay(zone).toInstant()
+        val recs = client.readRecords(
+            ReadRecordsRequest(SleepSessionRecord::class, TimeRangeFilter.between(start.minus(Duration.ofHours(18)), Instant.now()))
+        ).records.filter { !it.endTime.isBefore(start) }
+        if (recs.isEmpty()) return null
+        val perDay = recs.groupBy { it.endTime.atZone(zone).toLocalDate() }.values.map { s ->
+            val mins = s.map { Duration.between(it.startTime, it.endTime).toMinutes() }
+            mins.sum() to (mins.sum() - mins.max())
+        }
+        return SleepAverage(perDay.map { it.first }.average() / 60, perDay.map { it.second }.average() / 60, perDay.size)
     }
 
     suspend fun recentExercises(days: Long = 7): List<ExerciseSessionRecord> =

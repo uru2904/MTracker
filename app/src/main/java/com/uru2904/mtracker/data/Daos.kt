@@ -143,6 +143,9 @@ interface MeasurementDao {
     @Query("SELECT * FROM measurement ORDER BY date")
     suspend fun all(): List<MeasurementEntry>
 
+    @Query("SELECT * FROM measurement ORDER BY date")
+    fun allFlow(): Flow<List<MeasurementEntry>>
+
     @Insert suspend fun insertAll(m: List<MeasurementEntry>)
 
     @Query("SELECT MAX(date) FROM measurement")

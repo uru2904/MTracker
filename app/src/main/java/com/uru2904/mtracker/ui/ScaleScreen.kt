@@ -1,6 +1,24 @@
 package com.uru2904.mtracker.ui
 
 import android.Manifest
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.uru2904.mtracker.data.MeasurementEntry
+import com.uru2904.mtracker.data.MeasurementType
+import com.uru2904.mtracker.health.SleepAverage
+import com.uru2904.mtracker.sheets.SheetsSync
+import java.time.LocalDate
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -143,97 +161,212 @@ fun ScaleScreen(db: AppDatabase) {
     LaunchedEffect(Unit) { launcher.launch(perms) }
     DisposableEffect(Unit) { onDispose { scanner.stop() } }
 
-    Column(
-        Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Text("Peso", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+    // ---- Datos de la pantalla Cuerpo ----
+    val chartSince = remember { System.currentTimeMillis() - 90L * 86_400_000 }
+    val weights90 by db.weights().since(chartSince).collectAsState(initial = emptyList())
+    val types by db.measurements().activeTypes().collectAsState(initial = emptyList())
+    val measures by db.measurements().allFlow().collectAsState(initial = emptyList())
+    val goal by db.goals().activeOn(LocalDate.now().toString()).collectAsState(initial = null)
+    var selectedType by remember { mutableStateOf<Long?>(null) } // null = peso
+    var sleep by remember { mutableStateOf<SleepAverage?>(null) }
+    LaunchedEffect(Unit) { sleep = runCatching { health.sleepAverage(7) }.getOrNull() }
+    var addMeasures by remember { mutableStateOf(false) }
+    val zone = ZoneId.systemDefault()
+    val es = Locale("es", "AR")
 
+    Column(Modifier.fillMaxSize().background(Color.Black)) {
+        Text(
+            "Cuerpo", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 8.dp),
+        )
         Column(
-            Modifier.fillMaxWidth().background(Card, RoundedCornerShape(20.dp)).padding(vertical = 36.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                live?.let { "${num(it.kg)} kg" } ?: "– – kg",
-                color = if (live?.stabilized == true) Color.White else Soft,
-                fontSize = 52.sp, fontWeight = FontWeight.Bold,
-            )
-            Text(status, color = Muted, fontSize = 14.sp)
-            Text(
-                when {
-                    scanError != null -> scanError!!
-                    scanning -> "Escuchando" + ".".repeat(dots)
-                    else -> "Sin escuchar"
-                },
-                color = if (scanError != null) Color(0xFFF2C14E) else Muted, fontSize = 12.sp,
-            )
-        }
+            // ---- Resumen de peso ----
+            val last = weights90.lastOrNull()
+            val monthAgo = weights90.filter { it.timestamp <= System.currentTimeMillis() - 25L * 86_400_000 }.lastOrNull()
+                ?: weights90.firstOrNull()
+            val target = goal?.targetWeightKg
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Peso actual", color = Muted, fontSize = 13.sp)
+                Text(last?.let { "${num(it.kg)} kg" } ?: "– kg", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                val notes = buildList {
+                    if (last != null && monthAgo != null && monthAgo.id != last.id) {
+                        val d = Math.round((last.kg - monthAgo.kg) * 10) / 10.0
+                        val days = ((last.timestamp - monthAgo.timestamp) / 86_400_000).coerceAtLeast(1)
+                        add("${if (d > 0) "+" else ""}${num(d)} kg en $days días")
+                    }
+                    if (last != null && target != null) {
+                        add(if (last.kg > target) "faltan ${num(Math.round((last.kg - target) * 10) / 10.0)} kg para ${num(target)}" else "objetivo cumplido")
+                    }
+                }
+                if (notes.isNotEmpty()) Text(notes.joinToString(" · "), color = Soft, fontSize = 14.sp)
+            }
 
-        pending?.let { r ->
+            // ---- Gráfico: peso o la medida seleccionada ----
+            val selType = types.firstOrNull { it.id == selectedType }
+            val points: List<Pair<Long, Double>> = if (selType == null) weights90.map { it.timestamp to it.kg }
+                else measures.filter { it.typeId == selType.id }.map {
+                    LocalDate.parse(it.date).atStartOfDay(zone).toInstant().toEpochMilli() to it.cm
+                }
             Column(
                 Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("¿Guardar ${num(r.kg)} kg?", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
-                        onClick = { dismissedKg = r.kg; pending = null; status = "Descartado" },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A)),
-                        modifier = Modifier.weight(1f),
-                    ) { Text("Descartar", color = Color.White) }
-                    Button(
-                        onClick = { confirm(r) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                        modifier = Modifier.weight(1f),
-                    ) { Text("Guardar", color = Color.White) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(if (selType == null) "Peso · 90 días" else selType.name, color = Muted, fontSize = 13.sp)
+                    points.lastOrNull()?.let {
+                        Text("${num(it.second)} ${if (selType == null) "kg" else "cm"}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                if (points.size < 2) Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                    Text(if (points.isEmpty()) "Sin datos todavía" else "Hace falta más de una medición para el gráfico", color = Muted, fontSize = 13.sp)
+                } else LineChart(points, if (selType == null) target else null)
+                if (points.size >= 2) Row(Modifier.fillMaxWidth().padding(start = 34.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    val f = DateTimeFormatter.ofPattern("d/M")
+                    Text(f.format(Instant.ofEpochMilli(points.first().first).atZone(zone)), color = Muted, fontSize = 10.sp)
+                    Text(f.format(Instant.ofEpochMilli(points.last().first).atZone(zone)), color = Muted, fontSize = 10.sp)
                 }
             }
-        }
 
-        if (locked) Row(
-            Modifier.fillMaxWidth().background(Color(0xFF0B0B0B), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Pesaje registrado. Bloqueado hasta las " +
-                    DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(lockUntil).atZone(ZoneId.systemDefault())),
-                color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f),
-            )
-            Text(
-                "Desbloquear", color = AccentLight, fontSize = 13.sp,
-                modifier = Modifier.clickable {
-                    lockUntil = 0L; prefs.edit().putLong("lock_until", 0L).apply(); dismissedKg = null
-                }.padding(start = 10.dp),
-            )
-        }
-
-        Button(
-            onClick = { launcher.launch(perms) },
-            colors = ButtonDefaults.buttonColors(containerColor = if (scanning) Color(0xFF1A1A1A) else Accent),
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Reiniciar escucha", color = Color.White) }
-
-        Text("Últimos 30 días", color = Muted, fontSize = 13.sp)
-        val fmt = DateTimeFormatter.ofPattern("EEE d/M HH:mm", Locale("es", "AR"))
-        Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(12.dp))) {
-            recent.reversed().take(10).forEachIndexed { i, w -> androidx.compose.runtime.key(w.id) {
-                if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Color(0xFF1F1F1F)))
-                SwipeToDelete(onDelete = { toDelete = w }) {
-                    Row(Modifier.fillMaxWidth().background(Card).clickable { detail = w }.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(fmt.format(Instant.ofEpochMilli(w.timestamp).atZone(ZoneId.systemDefault())), color = Soft, fontSize = 14.sp)
-                        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                            fatByWeight[w.id]?.let { Text("${num(Math.round(it * 10) / 10.0)} %", color = Soft, fontSize = 15.sp) }
-                            Text("${num(w.kg)} kg", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            // ---- Medidas (tocar una la grafica) ----
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Tocá una para ver su gráfico", color = Muted, fontSize = 13.sp)
+                Text("+ Cargar medidas", color = AccentLight, fontSize = 13.sp, modifier = Modifier.clickable { addMeasures = true }.padding(4.dp))
+            }
+            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
+                val rows = listOf<Pair<Long?, String>>(null to "Peso") + types.map { it.id to it.name }
+                rows.forEachIndexed { i, (id, name) ->
+                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+                    val sel = selectedType == id
+                    val (value, delta) = if (id == null) {
+                        (last?.let { "${num(it.kg)} kg" } ?: "–") to null
+                    } else {
+                        val h = measures.filter { it.typeId == id }
+                        val v = h.lastOrNull()
+                        val prev = h.dropLast(1).lastOrNull()
+                        (v?.let { "${num(it.cm)} cm" } ?: "Sin cargar") to
+                            if (v != null && prev != null) Math.round((v.cm - prev.cm) * 10) / 10.0 else null
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().clickable { selectedType = id }.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(name, color = if (sel) AccentLight else Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        delta?.takeIf { it != 0.0 }?.let {
+                            Text("${if (it > 0) "+" else ""}${num(it)}", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(end = 12.dp))
                         }
+                        Text(value, color = if (sel) AccentLight else if (value == "Sin cargar") Muted else Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
+            measures.maxByOrNull { it.date }?.let {
+                Text("Últimas medidas: " + DateTimeFormatter.ofPattern("EEE d/M", es).format(LocalDate.parse(it.date)), color = Muted, fontSize = 12.sp)
             }
-            if (recent.isEmpty()) Text("Todavía no hay pesadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(14.dp))
-        }
 
+            // ---- Sueño ----
+            Row(
+                Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text("Sueño, promedio 7 días", color = Muted, fontSize = 13.sp)
+                    Text(sleep?.let { "${(it.totalH).toInt()} h ${Math.round((it.totalH % 1) * 60)} min" } ?: "Sin datos", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                }
+                sleep?.let {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Siesta", color = Muted, fontSize = 13.sp)
+                        Text("${num(Math.round(it.napH * 10) / 10.0)} h", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+
+            // ---- Balanza ----
+            Text("Pesarse", color = Muted, fontSize = 13.sp)
+            Column(
+                Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        live?.let { "${num(it.kg)} kg" } ?: "– – kg",
+                        color = if (live?.stabilized == true) Color.White else Soft,
+                        fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                    )
+                    Text("Reiniciar", color = AccentLight, fontSize = 13.sp, modifier = Modifier.clickable { launcher.launch(perms) }.padding(4.dp))
+                }
+                Text(status, color = Muted, fontSize = 13.sp)
+                Text(
+                    when {
+                        scanError != null -> scanError!!
+                        scanning -> "Escuchando" + ".".repeat(dots)
+                        else -> "Sin escuchar"
+                    },
+                    color = if (scanError != null) Color(0xFFF2C14E) else Muted, fontSize = 12.sp,
+                )
+            }
+
+            pending?.let { r ->
+                Column(
+                    Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("¿Guardar ${num(r.kg)} kg?", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(
+                            onClick = { dismissedKg = r.kg; pending = null; status = "Descartado" },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A)),
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Descartar", color = Color.White) }
+                        Button(
+                            onClick = { confirm(r) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Guardar", color = Color.White) }
+                    }
+                }
+            }
+
+            if (locked) Row(
+                Modifier.fillMaxWidth().background(Color(0xFF0B0B0B), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Pesaje registrado. Bloqueado hasta las " +
+                        DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(lockUntil).atZone(zone)),
+                    color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "Desbloquear", color = AccentLight, fontSize = 13.sp,
+                    modifier = Modifier.clickable {
+                        lockUntil = 0L; prefs.edit().putLong("lock_until", 0L).apply(); dismissedKg = null
+                    }.padding(start = 10.dp),
+                )
+            }
+
+            // ---- Pesadas ----
+            Text("Pesadas · últimos 30 días", color = Muted, fontSize = 13.sp)
+            val fmt = DateTimeFormatter.ofPattern("EEE d/M HH:mm", es)
+            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
+                recent.reversed().take(15).forEachIndexed { i, w -> androidx.compose.runtime.key(w.id) {
+                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+                    SwipeToDelete(onDelete = { toDelete = w }) {
+                        Row(Modifier.fillMaxWidth().background(Card).clickable { detail = w }.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(fmt.format(Instant.ofEpochMilli(w.timestamp).atZone(zone)), color = Soft, fontSize = 14.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                fatByWeight[w.id]?.let { Text("${num(Math.round(it * 10) / 10.0)} %", color = Soft, fontSize = 15.sp) }
+                                Text("${num(w.kg)} kg", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                } }
+                if (recent.isEmpty()) Text("Todavía no hay pesadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(14.dp))
+            }
+        }
     }
+
+    if (addMeasures) MeasuresDialog(db, types) { addMeasures = false }
 
     weighed?.let { w -> WeighInDialog(db, w) { weighed = null } }
     detail?.let { w -> WeightDetailDialog(db, w) { detail = null } }
@@ -250,5 +383,90 @@ fun ScaleScreen(db: AppDatabase) {
             },
             onDismiss = { toDelete = null },
         )
+    }
+}
+
+
+/** Línea con puntos; eje vertical con mínimo y máximo; línea punteada = objetivo. */
+@Composable
+private fun LineChart(points: List<Pair<Long, Double>>, target: Double?) {
+    val values = points.map { it.second } + listOfNotNull(target)
+    val lo = values.minOrNull()!!; val hi = values.maxOrNull()!!
+    val pad = ((hi - lo) * 0.15).coerceAtLeast(0.5)
+    val min = lo - pad; val max = hi + pad
+    val t0 = points.first().first; val t1 = points.last().first
+    Row(Modifier.fillMaxWidth().height(130.dp)) {
+        Column(
+            Modifier.fillMaxHeight().padding(end = 6.dp).width(28.dp),
+            verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.End,
+        ) {
+            Text(num(Math.round(max * 10) / 10.0), color = Muted, fontSize = 10.sp)
+            Text(num(Math.round(min * 10) / 10.0), color = Muted, fontSize = 10.sp)
+        }
+        Canvas(Modifier.weight(1f).fillMaxHeight()) {
+            fun x(t: Long) = if (t1 == t0) size.width / 2 else ((t - t0).toFloat() / (t1 - t0)) * size.width
+            fun y(v: Double) = (size.height * (1 - (v - min) / (max - min))).toFloat()
+            listOf(0f, 0.5f, 1f).forEach { f -> drawLine(Color(0xFF242424), Offset(0f, size.height * f), Offset(size.width, size.height * f), 1f) }
+            target?.let {
+                val ty = y(it); var xx = 0f
+                while (xx < size.width) { drawLine(Color(0xFF555555), Offset(xx, ty), Offset(xx + 6f, ty), 2f); xx += 12f }
+            }
+            val path = Path()
+            points.forEachIndexed { i, (t, v) -> if (i == 0) path.moveTo(x(t), y(v)) else path.lineTo(x(t), y(v)) }
+            drawPath(path, AccentLight, style = Stroke(width = 4f))
+            points.forEach { (t, v) -> drawCircle(AccentLight, 5f, Offset(x(t), y(v))) }
+        }
+    }
+}
+
+/** Carga manual de medidas con cinta (fecha de hoy). */
+@Composable
+private fun MeasuresDialog(db: AppDatabase, types: List<MeasurementType>, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val values = remember { mutableStateMapOf<Long, String>() }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Cargar medidas", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("Cinta firme sin apretar, relajado, a la misma altura que la vez anterior. Dejá vacías las que no midas.", color = Muted, fontSize = 13.sp)
+            types.forEach { t ->
+                OutlinedTextField(
+                    value = values[t.id] ?: "",
+                    onValueChange = { values[t.id] = it },
+                    label = { Text(t.name) },
+                    suffix = { Text("cm", color = Muted) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = AccentLight, unfocusedBorderColor = Muted,
+                        focusedLabelColor = AccentLight, unfocusedLabelColor = Muted, cursorColor = Color.White,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            val filled = values.filterValues { it.replace(',', '.').toDoubleOrNull() != null }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = Card), modifier = Modifier.weight(1f).height(52.dp)) {
+                    Text("Cancelar", color = Color.White)
+                }
+                Button(
+                    onClick = {
+                        val today = LocalDate.now().toString()
+                        scope.launch {
+                            db.measurements().insertAll(filled.map { (id, v) -> MeasurementEntry(typeId = id, date = today, cm = v.replace(',', '.').toDouble()) })
+                            runCatching { SheetsSync(context, db).syncSilently(context, HealthRepository(context)) }
+                            onClose()
+                        }
+                    },
+                    enabled = filled.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                    modifier = Modifier.weight(1f).height(52.dp),
+                ) { Text("Guardar", color = if (filled.isNotEmpty()) Color.White else Muted) }
+            }
+        }
     }
 }
