@@ -13,7 +13,7 @@ class SleepScoreTest {
 
     @Test fun nocheCorta() {
         val s = SleepScorer.score(SleepMinutes(total = 277, awake = 6, light = 73 + 60, deep = 33, rem = 36 + 69))
-        assertTrue(s.score in 50..80)
+        assertTrue("puntaje ${s.score}", s.score in 55..70)
         assertEquals("Atención", s.duration)
     }
 
