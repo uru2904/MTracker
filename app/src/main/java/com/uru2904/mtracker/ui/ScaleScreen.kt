@@ -19,7 +19,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.uru2904.mtracker.data.MeasurementEntry
 import com.uru2904.mtracker.data.MeasurementType
-import com.uru2904.mtracker.health.SleepAverage
 import com.uru2904.mtracker.sheets.SheetsSync
 import java.time.LocalDate
 import android.os.Build
@@ -172,8 +171,6 @@ fun ScaleScreen(db: AppDatabase) {
     val measures by db.measurements().allFlow().collectAsState(initial = emptyList())
     val goal by db.goals().activeOn(LocalDate.now().toString()).collectAsState(initial = null)
     var selectedType by remember { mutableStateOf<Long?>(null) } // null = peso
-    var sleep by remember { mutableStateOf<SleepAverage?>(null) }
-    LaunchedEffect(Unit) { sleep = runCatching { health.sleepAverage(7) }.getOrNull() }
     var addMeasures by remember { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
     val es = Locale("es", "AR")
@@ -264,23 +261,6 @@ fun ScaleScreen(db: AppDatabase) {
             }
             measures.maxByOrNull { it.date }?.let {
                 Text("Últimas medidas: " + DateTimeFormatter.ofPattern("EEE d/M", es).format(LocalDate.parse(it.date)), color = Muted, fontSize = 12.sp)
-            }
-
-            // ---- Sueño ----
-            Row(
-                Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column {
-                    Text("Sueño, promedio 7 días", color = Muted, fontSize = 13.sp)
-                    Text(sleep?.let { "${(it.totalH).toInt()} h ${Math.round((it.totalH % 1) * 60)} min" } ?: "Sin datos", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                }
-                sleep?.let {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Siesta", color = Muted, fontSize = 13.sp)
-                        Text("${num(Math.round(it.napH * 10) / 10.0)} h", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
             }
 
             // ---- Balanza ----

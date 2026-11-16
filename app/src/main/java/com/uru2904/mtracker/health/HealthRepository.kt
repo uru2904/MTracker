@@ -40,6 +40,34 @@ data class Composition(val bodyFatPct: Double?, val leanKg: Double?, val at: Ins
     val any get() = bodyFatPct != null || leanKg != null
 }
 
+/** Una fase dentro de una sesión de sueño (tipos de SleepSessionRecord.STAGE_TYPE_*). */
+data class SleepStage(val start: Instant, val end: Instant, val type: Int)
+
+/** Una sesión de sueño (principal o siesta). */
+data class SleepBlock(val start: Instant, val end: Instant, val stages: List<SleepStage>) {
+    val minutes get() = Duration.between(start, end).toMinutes()
+}
+
+/** Todo lo dormido que terminó en un mismo día. La sesión más larga es el sueño principal. */
+data class SleepNight(val date: LocalDate, val blocks: List<SleepBlock>) {
+    val main get() = blocks.maxBy { it.minutes }
+    val naps get() = blocks.filter { it !== main }
+    val totalMin get() = blocks.sumOf { it.minutes }
+    val napMin get() = naps.sumOf { it.minutes }
+    private fun stageMin(vararg types: Int) = blocks.flatMap { it.stages }.filter { it.type in types }
+        .sumOf { Duration.between(it.start, it.end).toMinutes() }
+    val minutes get() = com.uru2904.mtracker.domain.SleepMinutes(
+        total = totalMin,
+        awake = stageMin(SleepSessionRecord.STAGE_TYPE_AWAKE, SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED, SleepSessionRecord.STAGE_TYPE_OUT_OF_BED),
+        light = stageMin(SleepSessionRecord.STAGE_TYPE_LIGHT),
+        deep = stageMin(SleepSessionRecord.STAGE_TYPE_DEEP),
+        rem = stageMin(SleepSessionRecord.STAGE_TYPE_REM),
+    )
+}
+
+/** Signos durante el sueño principal. */
+data class SleepVitals(val hrAvg: Long?, val hrMin: Long?, val spo2Avg: Double?, val spo2Min: Double?, val rrAvg: Double?)
+
 /** Promedio de sueño por día (total y siesta, en horas) sobre los días con datos. */
 data class SleepAverage(val totalH: Double, val napH: Double, val days: Int)
 
@@ -64,6 +92,7 @@ class HealthRepository(private val context: Context) {
         HealthPermission.getWritePermission(WeightRecord::class),
         HealthPermission.getReadPermission(androidx.health.connect.client.records.BodyFatRecord::class),
         HealthPermission.getReadPermission(androidx.health.connect.client.records.LeanBodyMassRecord::class),
+        HealthPermission.getReadPermission(androidx.health.connect.client.records.RespiratoryRateRecord::class),
     )
 
     /** Permiso para leer Health Connect cuando la app no está abierta (Android 15+). */
@@ -159,6 +188,46 @@ class HealthRepository(private val context: Context) {
             mins.sum() to (mins.sum() - mins.max())
         }
         return SleepAverage(perDay.map { it.first }.average() / 60, perDay.map { it.second }.average() / 60, perDay.size)
+    }
+
+    /** Noches de los últimos [days] días, más reciente primero. */
+    suspend fun sleepNights(days: Int = 30): List<SleepNight> {
+        val start = LocalDate.now().minusDays((days - 1).toLong()).atStartOfDay(zone).toInstant()
+        val out = mutableListOf<SleepSessionRecord>()
+        var token: String? = null
+        do {
+            val res = client.readRecords(
+                ReadRecordsRequest(SleepSessionRecord::class, TimeRangeFilter.between(start.minus(Duration.ofHours(18)), Instant.now()), pageToken = token)
+            )
+            out += res.records
+            token = res.pageToken
+        } while (token != null)
+        return out.filter { !it.endTime.isBefore(start) }
+            .map { r -> SleepBlock(r.startTime, r.endTime, r.stages.map { SleepStage(it.startTime, it.endTime, it.stage) }) }
+            .groupBy { it.end.atZone(zone).toLocalDate() }
+            .map { (d, b) -> SleepNight(d, b.sortedBy { it.start }) }
+            .sortedByDescending { it.date }
+    }
+
+    /** Ritmo cardíaco, oxígeno y respiración durante un período. */
+    suspend fun sleepVitals(start: Instant, end: Instant): SleepVitals {
+        val range = TimeRangeFilter.between(start, end)
+        val hr = runCatching {
+            client.readRecords(ReadRecordsRequest(HeartRateRecord::class, range)).records.flatMap { it.samples }.map { it.beatsPerMinute }
+        }.getOrDefault(emptyList())
+        val spo2 = runCatching {
+            client.readRecords(ReadRecordsRequest(OxygenSaturationRecord::class, range)).records.map { it.percentage.value }
+        }.getOrDefault(emptyList())
+        val rr = runCatching {
+            client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.RespiratoryRateRecord::class, range)).records.map { it.rate }
+        }.getOrDefault(emptyList())
+        return SleepVitals(
+            hrAvg = hr.takeIf { it.isNotEmpty() }?.average()?.let { Math.round(it) },
+            hrMin = hr.minOrNull(),
+            spo2Avg = spo2.takeIf { it.isNotEmpty() }?.average(),
+            spo2Min = spo2.minOrNull(),
+            rrAvg = rr.takeIf { it.isNotEmpty() }?.average(),
+        )
     }
 
     suspend fun recentExercises(days: Long = 7): List<ExerciseSessionRecord> =

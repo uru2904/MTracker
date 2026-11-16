@@ -104,6 +104,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         Tab.Cuerpo -> com.uru2904.mtracker.ui.ScaleScreen(db)
+                        Tab.Sueno -> com.uru2904.mtracker.ui.SleepScreen()
                         else -> InfoCard("${tab.label}: próximamente")
                     }
                 }

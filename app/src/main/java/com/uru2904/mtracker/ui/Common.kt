@@ -19,6 +19,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.outlined.FitnessCenter
@@ -50,6 +52,7 @@ enum class Tab(val label: String, val on: ImageVector, val off: ImageVector) {
     Comidas("Comidas", Icons.Filled.Restaurant, Icons.Outlined.Restaurant),
     Gym("Gym", Icons.Filled.FitnessCenter, Icons.Outlined.FitnessCenter),
     Cuerpo("Cuerpo", Icons.Filled.MonitorWeight, Icons.Outlined.MonitorWeight),
+    Sueno("Sueño", Icons.Filled.Bedtime, Icons.Outlined.Bedtime),
 }
 
 /** Barra inferior estilo Hevy: ícono + texto, fondo negro, línea fina arriba. */
