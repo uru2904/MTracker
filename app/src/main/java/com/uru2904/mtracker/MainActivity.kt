@@ -230,7 +230,9 @@ private fun HealthCheckScreen(health: HealthRepository, db: AppDatabase, sharedU
         }
 
         val required = remember {
-            if (health.backgroundReadSupported()) health.permissions + health.backgroundPermission else health.permissions
+            health.permissions +
+                (if (health.backgroundReadSupported()) setOf(health.backgroundPermission) else emptySet()) +
+                (if (health.historyReadSupported()) setOf(health.historyPermission) else emptySet())
         }
         val missing = granted?.let { required - it }.orEmpty()
         if (granted == null || missing.isNotEmpty()) {

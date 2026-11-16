@@ -151,9 +151,30 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         }
     }
 
+    /** Reescribe la pestaña Pesos con todas las pesadas (balanza y Samsung). */
+    suspend fun writeWeights(token: String) {
+        val id = sheetId ?: return
+        val all = db.weights().all()
+        if (all.isEmpty()) return
+        val zone = ZoneId.systemDefault()
+        val values = JSONArray().put(JSONArray().put("Fecha").put("Hora").put("Peso (kg)").put("Origen"))
+        all.forEach { w ->
+            val t = Instant.ofEpochMilli(w.timestamp).atZone(zone)
+            values.put(JSONArray().put(t.toLocalDate().toString()).put(DateTimeFormatter.ofPattern("H:mm").format(t))
+                .put(w.kg).put(if (w.source == "balanza") "Balanza (MTracker)" else if (w.source == "samsung") "Samsung Health" else w.source))
+        }
+        withContext(Dispatchers.IO) {
+            send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Pesos!A:D") + ":clear", token, JSONObject())
+            send("PUT", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Pesos!A1") + "?valueInputOption=RAW",
+                token, JSONObject().put("values", values))
+        }
+    }
+
     /** Todo junto: comidas, gym, medidas y resumen diario. Los errores de lo secundario no frenan las comidas. */
     suspend fun syncAll(token: String, health: com.uru2904.mtracker.health.HealthRepository) {
         sync(token)
+        runCatching { com.uru2904.mtracker.sync.WeightImport.run(context, db, health) }
+        runCatching { writeWeights(token) }
         runCatching { writeGym(token) }
         runCatching { writeMedidas(token) }
         runCatching {

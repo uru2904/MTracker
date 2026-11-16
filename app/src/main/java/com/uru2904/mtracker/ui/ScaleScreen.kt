@@ -162,7 +162,8 @@ fun ScaleScreen(db: AppDatabase) {
     DisposableEffect(Unit) { onDispose { scanner.stop() } }
 
     // ---- Datos de la pantalla Cuerpo ----
-    val chartSince = remember { System.currentTimeMillis() - 90L * 86_400_000 }
+    val chartSince = remember { System.currentTimeMillis() - 365L * 86_400_000 }
+    LaunchedEffect(Unit) { runCatching { com.uru2904.mtracker.sync.WeightImport.run(context, db, health) } }
     val weights90 by db.weights().since(chartSince).collectAsState(initial = emptyList())
     val types by db.measurements().activeTypes().collectAsState(initial = emptyList())
     val measures by db.measurements().allFlow().collectAsState(initial = emptyList())
@@ -215,7 +216,7 @@ fun ScaleScreen(db: AppDatabase) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(if (selType == null) "Peso · 90 días" else selType.name, color = Muted, fontSize = 13.sp)
+                    Text(if (selType == null) "Peso" else selType.name, color = Muted, fontSize = 13.sp)
                     points.lastOrNull()?.let {
                         Text("${num(it.second)} ${if (selType == null) "kg" else "cm"}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
@@ -378,6 +379,7 @@ fun ScaleScreen(db: AppDatabase) {
             onConfirm = {
                 scope.launch {
                     db.weights().delete(w)
+                    com.uru2904.mtracker.sync.WeightImport.markDeleted(context, w.timestamp)
                     runCatching { health.deleteWeight(Instant.ofEpochMilli(w.timestamp)) }
                 }
             },

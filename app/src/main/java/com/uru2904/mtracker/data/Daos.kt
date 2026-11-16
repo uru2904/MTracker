@@ -121,6 +121,11 @@ interface WeightDao {
     @Query("SELECT * FROM weight ORDER BY timestamp DESC LIMIT 1")
     fun latest(): Flow<WeightEntry?>
 
+    @Query("SELECT * FROM weight ORDER BY timestamp")
+    suspend fun all(): List<WeightEntry>
+
+    @Insert suspend fun insertAll(w: List<WeightEntry>)
+
     @Query("SELECT * FROM weight WHERE timestamp >= :from ORDER BY timestamp")
     fun since(from: Long): Flow<List<WeightEntry>>
 }

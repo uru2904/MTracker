@@ -77,6 +77,35 @@ class HealthRepository(private val context: Context) {
         ) == androidx.health.connect.client.HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
     }.getOrDefault(false)
 
+    /** Permiso para leer datos de más de 30 días atrás. */
+    val historyPermission = "android.permission.health.READ_HEALTH_DATA_HISTORY"
+
+    @OptIn(androidx.health.connect.client.feature.ExperimentalFeatureAvailabilityApi::class)
+    fun historyReadSupported(): Boolean = runCatching {
+        client.features.getFeatureStatus(
+            androidx.health.connect.client.HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_HISTORY
+        ) == androidx.health.connect.client.HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+    }.getOrDefault(false)
+
+    /** Todos los pesos de Health Connect de otras apps (Samsung Health, etc.): (momento en ms, kg, origen). */
+    suspend fun weightHistory(years: Long = 5): List<Triple<Long, Double, String>> {
+        val out = mutableListOf<Triple<Long, Double, String>>()
+        var token: String? = null
+        do {
+            val res = client.readRecords(
+                ReadRecordsRequest(
+                    WeightRecord::class,
+                    TimeRangeFilter.after(Instant.now().minus(Duration.ofDays(365 * years))),
+                    pageToken = token,
+                )
+            )
+            res.records.filter { it.metadata.dataOrigin.packageName != context.packageName }
+                .forEach { out += Triple(it.time.toEpochMilli(), it.weight.inKilograms, it.metadata.dataOrigin.packageName) }
+            token = res.pageToken
+        } while (token != null)
+        return out
+    }
+
     /** Permiso mínimo para el resumen diario (los demás se leen si están). */
     val stepsPermission = HealthPermission.getReadPermission(StepsRecord::class)
 
