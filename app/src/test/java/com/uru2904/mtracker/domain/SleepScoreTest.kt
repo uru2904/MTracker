@@ -22,7 +22,8 @@ class SleepScoreTest {
     }
 
     @Test fun samsung14Nov61() {
-        val s = SleepScorer.score(SleepMinutes(total = 277, awake = 24, light = 184, deep = 33, rem = 36))
+        // Factores de la sesión que mostró Samsung: 2 h 28, despierto 6, profundo 33, REM 36
+        val s = SleepScorer.score(SleepMinutes(total = 148, awake = 6, light = 73, deep = 33, rem = 36))
         assertTrue("puntaje ${s.score}", s.score in 56..66)
         assertEquals("Atención", s.duration)
         assertEquals("Regular", s.label)

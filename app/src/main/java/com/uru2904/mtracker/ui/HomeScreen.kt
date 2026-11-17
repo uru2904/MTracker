@@ -189,7 +189,6 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                 importMsg?.let { Notice(it, "OK") { importMsg = null } }
 
                 // ---- Anillos del día ----
-                val kcalT = goal?.kcalTarget ?: 2250
                 val protT = goal?.proteinTarget ?: 150
                 val night = data?.night?.takeIf { ChronoUnit.DAYS.between(it.date, LocalDate.now()) <= 1 }
                 val sleepMin = night?.totalMin ?: 0
@@ -197,11 +196,12 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                     Modifier.fillMaxWidth().background(Card, RoundedCornerShape(20.dp)).padding(vertical = 18.dp, horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    val kf = (totals.kcal / kcalT).toFloat()
+                    val gymDays = sessions.map { Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate() }
+                        .filter { ChronoUnit.DAYS.between(it, LocalDate.now()) in 0..6 }.distinct().size
                     Ring(
-                        Modifier.weight(1f).clickable { onNavigate(Tab.Comidas) }, kf,
-                        if (kf > 1.05f) Red else AccentLight,
-                        "%,d".format(es, totals.kcal.toInt()), "de %,d kcal".format(es, kcalT), "Calorías",
+                        Modifier.weight(1f).clickable { onNavigate(Tab.Gym) }, gymDays / 3f,
+                        when { gymDays >= 3 -> Green; gymDays == 2 -> Yellow; else -> Red },
+                        "$gymDays / 3", "últimos 7 días", "Entrenamientos",
                     )
                     val pf = (totals.protein / protT).toFloat()
                     Ring(
