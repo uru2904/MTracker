@@ -66,7 +66,7 @@ private val Bad = Color(0xFFF87171)
 
 private fun hm(min: Long) = if (min < 60) "$min min" else "${min / 60} h ${min % 60} min"
 
-private fun labelColor(l: String?) = when (l) { "Excelente", "Bueno", "Buena" -> Good; "Regular", "Excesiva" -> Warn; null -> Muted; else -> Bad }
+private fun labelColor(l: String?) = when (l) { "Excelente", "Buena" -> Good; "Regular" -> Warn; null -> Muted; else -> Bad }
 
 /** Pantalla Sueño (estilo AutoSleep + detalle tipo Samsung Health). */
 @Composable

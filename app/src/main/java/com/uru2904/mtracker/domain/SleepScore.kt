@@ -9,41 +9,31 @@ data class SleepMinutes(val total: Long, val awake: Long, val light: Long, val d
 data class SleepScore(val score: Int, val label: String, val duration: String, val deep: String?, val rem: String?, val awake: String?)
 
 /**
- * Puntaje propio (0-100), inspirado en Samsung Health:
- *  duración dormida 60 pts (7-9 h = completo; por debajo cae en forma cuadrática), profundo 10 (≥13 %),
- *  REM 10 (≥20 %), despierto 20 (≤5 % del total).
- * Sin fases, solo cuenta la duración (escalada a 100).
+ * Puntaje propio calibrado con Samsung Health (noches del 14/11 = 61 y 16/11 = 84).
+ * Cada factor se califica como Samsung y suma según su nivel (Excelente 100 %, Buena 80 %, Regular 55 %, Atención 30 %):
+ *  - Tiempo de sueño real (50 pts): ≥7 h Excelente, ≥6 h Buena, ≥5 h Regular.
+ *  - Sueño profundo, en minutos (15 pts): ≥50 Excelente, ≥30 Buena, ≥20 Regular.
+ *  - Sueño REM, en % del sueño real (15 pts): ≥27 % Excelente, ≥20 % Buena, ≥15 % Regular.
+ *  - Despierto, en minutos (20 pts): ≤30 Excelente, ≤45 Buena, ≤60 Regular.
+ * Samsung además usa la latencia, que no pasa a Health Connect.
  */
 object SleepScorer {
-    const val TARGET_MIN = 7 * 60L
-    const val TARGET_MAX = 9 * 60L
+    private fun pts(level: String) = when (level) { "Excelente" -> 1.0; "Buena" -> 0.8; "Regular" -> 0.55; else -> 0.3 }
 
     fun score(m: SleepMinutes): SleepScore {
         val a = m.asleep
-        val dur = when {
-            a in TARGET_MIN..TARGET_MAX -> 60.0
-            a < TARGET_MIN -> 60.0 * Math.pow(a.toDouble() / TARGET_MIN, 2.0)
-            else -> (60.0 - (a - TARGET_MAX) / 6.0).coerceAtLeast(45.0)
-        }
-        val durLabel = when { a < 6 * 60 -> "Atención"; a < TARGET_MIN -> "Regular"; a <= TARGET_MAX -> "Buena"; else -> "Excesiva" }
+        val dur = when { a >= 7 * 60 -> "Excelente"; a >= 6 * 60 -> "Buena"; a >= 5 * 60 -> "Regular"; else -> "Atención" }
         if (!m.hasStages) {
-            val s = (dur * 100 / 60).toInt().coerceIn(0, 100)
-            return SleepScore(s, label(s), durLabel, null, null, null)
+            val s = (pts(dur) * 100).toInt()
+            return SleepScore(s, label(s), dur, null, null, null)
         }
-        val deepPct = if (a > 0) m.deep * 100.0 / a else 0.0
+        val deep = when { m.deep >= 50 -> "Excelente"; m.deep >= 30 -> "Buena"; m.deep >= 20 -> "Regular"; else -> "Atención" }
         val remPct = if (a > 0) m.rem * 100.0 / a else 0.0
-        val awakePct = if (m.total > 0) m.awake * 100.0 / m.total else 0.0
-        val deep = 10.0 * (deepPct / 13.0).coerceAtMost(1.0)
-        val rem = 10.0 * (remPct / 20.0).coerceAtMost(1.0)
-        val awake = when { awakePct <= 5 -> 20.0; awakePct >= 25 -> 0.0; else -> 20.0 * (25 - awakePct) / 20 }
-        val s = (dur + deep + rem + awake).toInt().coerceIn(0, 100)
-        return SleepScore(
-            s, label(s), durLabel,
-            deep = if (deepPct >= 13) "Buena" else if (deepPct >= 8) "Regular" else "Atención",
-            rem = if (remPct >= 20) "Buena" else if (remPct >= 14) "Regular" else "Atención",
-            awake = if (awakePct <= 5) "Excelente" else if (awakePct <= 12) "Buena" else "Atención",
-        )
+        val rem = when { remPct >= 27 -> "Excelente"; remPct >= 20 -> "Buena"; remPct >= 15 -> "Regular"; else -> "Atención" }
+        val awake = when { m.awake <= 30 -> "Excelente"; m.awake <= 45 -> "Buena"; m.awake <= 60 -> "Regular"; else -> "Atención" }
+        val s = (50 * pts(dur) + 15 * pts(deep) + 15 * pts(rem) + 20 * pts(awake)).toInt().coerceIn(0, 100)
+        return SleepScore(s, label(s), dur, deep, rem, awake)
     }
 
-    fun label(s: Int) = when { s >= 85 -> "Excelente"; s >= 70 -> "Bueno"; s >= 50 -> "Regular"; else -> "Malo" }
+    fun label(s: Int) = when { s >= 85 -> "Excelente"; s >= 70 -> "Buena"; s >= 50 -> "Regular"; else -> "Atención" }
 }
