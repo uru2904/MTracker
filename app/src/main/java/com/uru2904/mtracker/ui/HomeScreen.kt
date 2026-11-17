@@ -69,10 +69,9 @@ private val es = Locale("es", "AR")
 private val Green = Color(0xFF22C55E)
 private val Yellow = Color(0xFFF2C14E)
 private val Red = Color(0xFFF87171)
-private const val STEPS_TARGET = 10_000
 
 /** Lo que Inicio lee de Health Connect (se guarda en memoria para no parpadear). */
-data class HomeHealth(val steps: Long, val night: SleepNight?, val exercises: List<String>)
+data class HomeHealth(val steps: Long, val night: SleepNight?, val exercises: List<String>, val nights: List<SleepNight> = emptyList())
 
 /**
  * Inicio (Whoop + MacroFactor): 3 anillos del día (calorías, proteína, sueño) y
@@ -117,9 +116,11 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
             UiCache.granted = granted
             if (granted!!.isNotEmpty()) {
                 val fmt = DateTimeFormatter.ofPattern("EEE d/M", es)
+                val nights = runCatching { health.sleepNights(7) }.getOrDefault(emptyList())
                 data = HomeHealth(
+                    nights = nights,
                     steps = health.stepsToday(),
-                    night = runCatching { health.sleepNights(2).firstOrNull() }.getOrNull(),
+                    night = nights.firstOrNull(),
                     exercises = health.recentExercises(7).take(3).map {
                         "${fmt.format(it.startTime.atZone(zone))} · ${HealthRepository.exerciseName(it.exerciseType)} · " +
                             "${Duration.between(it.startTime, it.endTime).toMinutes()} min"
@@ -148,11 +149,7 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                 Text("MTracker", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Text("  v$version", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp))
             }
-            Text(
-                "Turno ${calendar.shiftForWeekOf(LocalDate.now()).name}" +
-                    (if (daysLeft != null && daysLeft >= 0) " · faltan $daysLeft días para ${goal?.name}" else ""),
-                color = Muted, fontSize = 13.sp,
-            )
+            if (daysLeft != null && daysLeft >= 0) Text("Faltan $daysLeft días para ${goal?.name}", color = Muted, fontSize = 13.sp)
         }
 
         RefreshBox(refreshing = refreshing, onRefresh = { scope.launch { refreshing = true; refresh(); refreshing = false } }) {
@@ -273,20 +270,32 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                     }
                 }
 
-                // ---- Pasos y actividad ----
-                DashCard("Pasos", null) {
-                    val steps = data?.steps ?: 0
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                        Text("%,d".format(es, steps), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        Text("de %,d".format(es, STEPS_TARGET), color = Muted, fontSize = 13.sp)
+                // ---- Sueño: últimas 7 noches con el rango 7–9 h ----
+                DashCard("Sueño · 7 noches", { onNavigate(Tab.Sueno) }) {
+                    val nights = data?.nights.orEmpty()
+                    val withData = nights.filter { ChronoUnit.DAYS.between(it.date, LocalDate.now()) in 0..6 }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            val avg = if (withData.isEmpty()) null else withData.sumOf { it.totalMin } / withData.size
+                            Text(avg?.let { "${it / 60} h ${it % 60} min" } ?: "Sin datos", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("promedio", color = Soft, fontSize = 13.sp)
+                        }
+                        val byDate = nights.associateBy { it.date }
+                        Canvas(Modifier.width(120.dp).height(44.dp)) {
+                            val maxH = 12f
+                            fun y(h: Float) = size.height * (1 - h / maxH)
+                            drawRect(Color(0xFF1C2A1C), Offset(0f, y(9f)), Size(size.width, y(7f) - y(9f)))
+                            val n = 7; val gap = 4.dp.toPx(); val w = (size.width - gap * (n - 1)) / n
+                            (6 downTo 0).forEachIndexed { i, d ->
+                                val night = byDate[LocalDate.now().minusDays(d.toLong())] ?: return@forEachIndexed
+                                val h = (night.totalMin / 60f).coerceAtMost(maxH)
+                                drawRect(
+                                    when { night.totalMin >= 420 -> AccentLight; night.totalMin >= 360 -> Yellow; else -> Red },
+                                    Offset(i * (w + gap), y(h)), Size(w, size.height - y(h)),
+                                )
+                            }
+                        }
                     }
-                    Box(Modifier.fillMaxWidth().height(8.dp).background(Color(0xFF262626), RoundedCornerShape(4.dp))) {
-                        Box(
-                            Modifier.fillMaxWidth((steps.toFloat() / STEPS_TARGET).coerceIn(0f, 1f)).height(8.dp)
-                                .background(if (steps >= STEPS_TARGET) Green else AccentLight, RoundedCornerShape(4.dp))
-                        )
-                    }
-                    data?.exercises?.takeIf { it.isNotEmpty() }?.forEach { Text(it, color = Muted, fontSize = 12.sp) }
                 }
             }
         }
