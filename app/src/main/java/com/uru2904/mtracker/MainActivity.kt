@@ -77,7 +77,18 @@ class MainActivity : ComponentActivity() {
             runCatching { FoodSeed.loadArgenfood(db, this@MainActivity) }
         }
         setContent {
+            // La tablet solo mide y sube su uso de pantalla.
+            var tablet by remember { mutableStateOf(com.uru2904.mtracker.usage.DeviceRole.isTablet(this)) }
+            if (tablet) {
+                Box(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding()) {
+                    com.uru2904.mtracker.ui.TabletScreen(db) {
+                        com.uru2904.mtracker.usage.DeviceRole.set(this@MainActivity, false); tablet = false
+                    }
+                }
+                return@setContent
+            }
             var tab by remember { mutableStateOf(Tab.Hoy) }
+            androidx.activity.compose.BackHandler(enabled = tab != Tab.Hoy) { tab = Tab.Hoy }
             LaunchedEffect(sharedUri.value) { if (sharedUri.value != null) tab = Tab.Hoy }
             Column(
                 Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding()
@@ -106,10 +117,11 @@ class MainActivity : ComponentActivity() {
                         }
                         Tab.Cuerpo -> com.uru2904.mtracker.ui.ScaleScreen(db)
                         Tab.Sueno -> com.uru2904.mtracker.ui.SleepScreen()
+                        Tab.Uso -> com.uru2904.mtracker.ui.ScreenTimeScreen(db) { tab = Tab.Hoy }
                         else -> InfoCard("${tab.label}: próximamente")
                     }
                 }
-                TabBar(tab) { tab = it }
+                TabBar(if (tab.inBar) tab else Tab.Hoy) { tab = it }
             }
         }
     }

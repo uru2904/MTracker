@@ -23,6 +23,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.time.LocalDate
 
 /** Resultado de pedir acceso: token listo o una pantalla de Google que el usuario tiene que aceptar. */
 sealed class AuthStep {
@@ -172,6 +173,9 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
 
     /** Todo junto: comidas, gym, medidas y resumen diario. Los errores de lo secundario no frenan las comidas. */
     suspend fun syncAll(token: String, health: com.uru2904.mtracker.health.HealthRepository) {
+        val tablet = com.uru2904.mtracker.usage.DeviceRole.isTablet(context)
+        runCatching { writeUsage(token, tablet, com.uru2904.mtracker.usage.UsageReader(context).daily(7)) }
+        if (tablet) return
         sync(token)
         runCatching { com.uru2904.mtracker.sync.WeightImport.run(context, db, health) }
         runCatching { writeWeights(token) }
@@ -187,7 +191,7 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
     /** Sincroniza sin mostrar nada si Google ya dio permiso; si hace falta consentimiento, no hace nada. */
     suspend fun syncSilently(activity: Context, health: com.uru2904.mtracker.health.HealthRepository): Boolean =
         runCatching {
-            if (sheetId == null) return false
+            if (sheetId == null && !com.uru2904.mtracker.usage.DeviceRole.isTablet(activity)) return false
             when (val st = authorize(activity)) {
                 is AuthStep.Token -> { syncAll(st.token, health); true }
                 else -> false
@@ -223,14 +227,89 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         }
     }
 
-    /** Sube lo pendiente, trae la planilla y devuelve cuántas comidas hay. */
-    suspend fun sync(token: String): Int = lock.withLock {
-        if (!appOwned || sheetId == null) {
-            // Primera vez (o venía de la planilla vieja): la app crea la suya y le sube todo lo que tiene.
+    /**
+     * Se asegura de tener la planilla: si no la conoce, la busca en Drive (por ejemplo, en la tablet)
+     * y solo si no existe la crea.
+     */
+    private suspend fun ensureSheet(token: String) {
+        if (appOwned && sheetId != null) return
+        val found = withContext(Dispatchers.IO) {
+            runCatching {
+                val q = enc("name = 'MTracker – Datos' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false")
+                send("GET", "https://www.googleapis.com/drive/v3/files?q=$q&orderBy=createdTime&fields=files(id)", token, null)
+                    .getJSONArray("files").let { if (it.length() > 0) it.getJSONObject(0).getString("id") else null }
+            }.getOrNull()
+        }
+        if (found != null) {
+            sheetId = found
+        } else {
             sheetId = withContext(Dispatchers.IO) { createSheet(token) }
-            appOwned = true
             db.meals().markAllForUpload()
         }
+        appOwned = true
+    }
+
+    /** Crea la pestaña si no existe. */
+    private fun ensureTab(id: String, title: String, token: String) {
+        runCatching { tabId(id, title, token) }.onFailure {
+            send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id:batchUpdate", token,
+                JSONObject().put("requests", JSONArray().put(JSONObject().put("addSheet",
+                    JSONObject().put("properties", JSONObject().put("title", title))))))
+        }
+    }
+
+    /**
+     * Uso de pantalla de este dispositivo en su pestaña ("Uso celular" o "Uso tablet"):
+     * una fila por día con los minutos de cada app. Conserva los días viejos y reemplaza los medidos.
+     */
+    suspend fun writeUsage(token: String, tablet: Boolean, daily: Map<LocalDate, Map<com.uru2904.mtracker.usage.TrackedApp, Long>>) {
+        ensureSheet(token)
+        val id = sheetId ?: return
+        if (daily.isEmpty()) return
+        val tab = com.uru2904.mtracker.usage.DeviceRole.tab(tablet)
+        val apps = com.uru2904.mtracker.usage.TrackedApp.entries
+        withContext(Dispatchers.IO) {
+            ensureTab(id, tab, token)
+            val old = readUsageTab(id, tab, token)
+            val merged = old.toMutableMap()
+            daily.forEach { (d, m) -> merged[d] = apps.associateWith { m[it] ?: 0L } }
+            val now = java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+            val values = JSONArray().put(JSONArray().apply { put("Fecha"); apps.forEach { put("${it.label} (min)") }; put("Total (min)"); put("Actualizado") })
+            merged.toSortedMap().forEach { (d, m) ->
+                values.put(JSONArray().apply {
+                    put(d.toString()); apps.forEach { put(m[it] ?: 0) }; put(m.values.sum())
+                    put(if (d in daily) now else "")
+                })
+            }
+            send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("$tab!A:Z") + ":clear", token, JSONObject())
+            send("PUT", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("$tab!A1") + "?valueInputOption=RAW",
+                token, JSONObject().put("values", values))
+        }
+    }
+
+    /** Lee una pestaña de uso: día -> minutos por app. */
+    suspend fun readUsage(token: String, tablet: Boolean): Map<LocalDate, Map<com.uru2904.mtracker.usage.TrackedApp, Long>> {
+        ensureSheet(token)
+        val id = sheetId ?: return emptyMap()
+        return withContext(Dispatchers.IO) { runCatching { readUsageTab(id, com.uru2904.mtracker.usage.DeviceRole.tab(tablet), token) }.getOrDefault(emptyMap()) }
+    }
+
+    private fun readUsageTab(id: String, tab: String, token: String): Map<LocalDate, Map<com.uru2904.mtracker.usage.TrackedApp, Long>> {
+        val rows = runCatching { get(id, "$tab!A1:Z", token) }.getOrDefault(emptyList())
+        if (rows.isEmpty()) return emptyMap()
+        val header = rows.first()
+        return rows.drop(1).mapNotNull { r ->
+            val d = runCatching { LocalDate.parse(r.getOrNull(0).orEmpty()) }.getOrNull() ?: return@mapNotNull null
+            d to com.uru2904.mtracker.usage.TrackedApp.entries.associateWith { app ->
+                val i = header.indexOfFirst { it.startsWith(app.label) }
+                r.getOrNull(i)?.toLongOrNull() ?: 0L
+            }
+        }.toMap()
+    }
+
+    /** Sube lo pendiente, trae la planilla y devuelve cuántas comidas hay. */
+    suspend fun sync(token: String): Int = lock.withLock {
+        ensureSheet(token)
         val id = sheetId!!
         withContext(Dispatchers.IO) { pushPending(id, token) }
         val rows = withContext(Dispatchers.IO) { get(id, "Comidas!A2:J", token) }

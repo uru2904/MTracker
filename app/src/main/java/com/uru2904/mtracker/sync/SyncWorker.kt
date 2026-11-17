@@ -22,7 +22,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     override suspend fun doWork(): Result {
         val db = AppDatabase.get(applicationContext)
         val sync = SheetsSync(applicationContext, db)
-        if (sync.sheetId == null) return Result.success()
+        if (sync.sheetId == null && !com.uru2904.mtracker.usage.DeviceRole.isTablet(applicationContext)) return Result.success()
         val ok = sync.syncSilently(applicationContext, HealthRepository(applicationContext))
         applicationContext.getSharedPreferences("sync", Context.MODE_PRIVATE).edit()
             .putLong(if (ok) "last_bg_ok" else "last_bg_fail", System.currentTimeMillis()).apply()

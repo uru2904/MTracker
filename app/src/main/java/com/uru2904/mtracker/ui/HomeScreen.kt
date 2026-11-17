@@ -137,6 +137,15 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
     LaunchedEffect(Unit) { if (available) refresh() }
     var refreshing by remember { mutableStateOf(false) }
 
+    // Uso de pantalla (celular + tablet)
+    var usage by remember { mutableStateOf(UiCache.usage as? UsageData) }
+    suspend fun loadUsageCard() {
+        val token = runCatching { (com.uru2904.mtracker.sheets.SheetsSync(context, db).authorize(context) as? com.uru2904.mtracker.sheets.AuthStep.Token)?.token }.getOrNull()
+        usage = runCatching { loadUsage(context, db, token) }.getOrNull() ?: usage
+        UiCache.usage = usage
+    }
+    LaunchedEffect(Unit) { loadUsageCard() }
+
     Column(Modifier.fillMaxSize().background(Color.Black)) {
         // ---- Encabezado fijo ----
         val version = remember {
@@ -152,7 +161,7 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
             if (daysLeft != null && daysLeft >= 0) Text("Faltan $daysLeft días para ${goal?.name}", color = Muted, fontSize = 13.sp)
         }
 
-        RefreshBox(refreshing = refreshing, onRefresh = { scope.launch { refreshing = true; refresh(); refreshing = false } }) {
+        RefreshBox(refreshing = refreshing, onRefresh = { scope.launch { refreshing = true; refresh(); loadUsageCard(); refreshing = false } }) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -295,6 +304,22 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                                 )
                             }
                         }
+                    }
+                }
+
+                // ---- Pantalla: X, Instagram, YouTube, Kick y Twitch (celular + tablet) ----
+                DashCard("Pantalla hoy", { onNavigate(Tab.Uso) }) {
+                    val todayMin = usage?.total(LocalDate.now())
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                        Text(todayMin?.let { hmin(it) } ?: "–", color = todayMin?.let { usageColor(it) } ?: Muted,
+                            fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("de ${SCREEN_LIMIT_MIN / 60} h", color = Muted, fontSize = 13.sp)
+                    }
+                    Box(Modifier.fillMaxWidth().height(8.dp).background(Color(0xFF262626), RoundedCornerShape(4.dp))) {
+                        Box(
+                            Modifier.fillMaxWidth(((todayMin ?: 0).toFloat() / SCREEN_LIMIT_MIN).coerceIn(0f, 1f)).height(8.dp)
+                                .background(usageColor(todayMin ?: 0), RoundedCornerShape(4.dp))
+                        )
                     }
                 }
             }

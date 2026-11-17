@@ -59,4 +59,5 @@ object UiCache {
     @Volatile var granted: Set<String>? = null
     @Volatile var sleepNights: Any? = null
     @Volatile var fatByWeight: Map<Long, Double> = emptyMap()
+    @Volatile var usage: Any? = null
 }

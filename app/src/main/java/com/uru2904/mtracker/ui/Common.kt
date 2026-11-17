@@ -47,12 +47,14 @@ val Card = Color(0xFF111111)
 val Muted = Color(0xFF8A8A8A)
 val Soft = Color(0xFFBDBDBD)
 
-enum class Tab(val label: String, val on: ImageVector, val off: ImageVector) {
+enum class Tab(val label: String, val on: ImageVector, val off: ImageVector, val inBar: Boolean = true) {
     Hoy("Inicio", Icons.Filled.Home, Icons.Outlined.Home),
     Comidas("Comidas", Icons.Filled.Restaurant, Icons.Outlined.Restaurant),
     Gym("Gym", Icons.Filled.FitnessCenter, Icons.Outlined.FitnessCenter),
     Cuerpo("Cuerpo", Icons.Filled.MonitorWeight, Icons.Outlined.MonitorWeight),
     Sueno("Sueño", Icons.Filled.Bedtime, Icons.Outlined.Bedtime),
+    /** Pantalla de uso del celular: se abre desde Inicio, no está en la barra. */
+    Uso("Pantalla", Icons.Filled.Home, Icons.Outlined.Home, inBar = false),
 }
 
 /** Barra inferior estilo Hevy: ícono + texto, fondo negro, línea fina arriba. */
@@ -65,7 +67,7 @@ fun TabBar(selected: Tab, onSelect: (Tab) -> Unit) {
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Tab.entries.forEach { t ->
+            Tab.entries.filter { it.inBar }.forEach { t ->
                 val sel = t == selected
                 val color = if (sel) Color.White else Muted
                 Column(
