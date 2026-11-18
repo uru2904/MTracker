@@ -18,6 +18,12 @@ object WeightImport {
         p.edit().putStringSet("deleted", set).apply()
     }
 
+    fun unmarkDeleted(context: Context, timestamp: Long) {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val set = p.getStringSet("deleted", emptySet())!!.toMutableSet().apply { remove(timestamp.toString()) }
+        p.edit().putStringSet("deleted", set).apply()
+    }
+
     suspend fun run(context: Context, db: AppDatabase, health: HealthRepository): Int {
         if (!health.isAvailable()) return 0
         val history = runCatching { health.weightHistory() }.getOrDefault(emptyList())

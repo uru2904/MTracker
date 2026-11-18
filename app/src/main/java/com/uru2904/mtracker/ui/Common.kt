@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Bedtime
@@ -356,5 +357,44 @@ fun EmptyState(text: String, action: String? = null, onAction: (() -> Unit)? = n
         if (action != null && onAction != null) androidx.compose.material3.Button(
             onClick = onAction, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Accent),
         ) { Text(action, color = Color.White) }
+    }
+}
+
+// ---- Avisos: una sola barra inferior para toda la app ----
+
+/** Barra de avisos de la app (la muestra MainActivity arriba de la barra de pestañas). */
+val LocalSnack = androidx.compose.runtime.staticCompositionLocalOf { androidx.compose.material3.SnackbarHostState() }
+
+/** Corrutinas que tienen que terminar aunque cambies de pantalla (deshacer y borrar en serio). */
+val AppScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
+
+/** Aviso simple. */
+fun androidx.compose.material3.SnackbarHostState.say(msg: String) {
+    AppScope.launch { currentSnackbarData?.dismiss(); showSnackbar(msg, withDismissAction = true) }
+}
+
+/**
+ * Después de borrar: "X borrado · Deshacer" unos segundos.
+ * Si toca Deshacer corre [undo]; si no, [commit] (lo que no se puede volver atrás, como borrar de la planilla).
+ */
+fun androidx.compose.material3.SnackbarHostState.undoable(msg: String, undo: suspend () -> Unit, commit: suspend () -> Unit = {}) {
+    AppScope.launch {
+        currentSnackbarData?.dismiss()
+        val r = showSnackbar(msg, actionLabel = "Deshacer", duration = androidx.compose.material3.SnackbarDuration.Short)
+        if (r == androidx.compose.material3.SnackbarResult.ActionPerformed) undo() else commit()
+    }
+}
+
+/** Para diálogos de pantalla completa: su propia barra de avisos (la de la app queda tapada por el diálogo). */
+@Composable
+fun DialogWithSnack(
+    host: androidx.compose.material3.SnackbarHostState = androidx.compose.runtime.remember { androidx.compose.material3.SnackbarHostState() },
+    content: @Composable () -> Unit,
+) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalSnack provides host) {
+        Box(Modifier.fillMaxSize()) {
+            content()
+            androidx.compose.material3.SnackbarHost(host, Modifier.align(Alignment.BottomCenter).padding(16.dp))
+        }
     }
 }

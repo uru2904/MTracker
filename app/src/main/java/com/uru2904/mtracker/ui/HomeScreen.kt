@@ -94,15 +94,15 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
     val weights by Live.weightsSince(db, Live.daysAgo(30)).collectAsState()
 
     // Importar el CSV de Hevy cuando se comparte a la app
-    var importMsg by remember { mutableStateOf<String?>(null) }
+    val snack = LocalSnack.current
     LaunchedEffect(sharedUri.value) {
         sharedUri.value?.let { uri ->
-            importMsg = try {
+            snack.say(try {
                 val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                     ?: error("No se pudo abrir el archivo")
                 val r = HevyImporter(db).import(text)
                 "Hevy: ${r.added} sesiones nuevas, ${r.skipped} ya estaban."
-            } catch (e: Exception) { "No se pudo importar: ${e.message}" }
+            } catch (e: Exception) { "No se pudo importar: ${e.message}" })
             sharedUri.value = null
         }
     }
@@ -198,7 +198,6 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                     }
                 }
                 error?.let { Notice("Error al leer Health Connect: $it", null) {} }
-                importMsg?.let { Notice(it, "OK") { importMsg = null } }
 
                 CheckInCard(db)
 

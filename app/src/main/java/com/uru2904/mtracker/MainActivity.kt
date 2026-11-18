@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.uru2904.mtracker.ui.say
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
 import com.uru2904.mtracker.domain.ShiftCalendar
@@ -88,6 +89,8 @@ class MainActivity : ComponentActivity() {
                 }
                 return@MTrackerTheme
             }
+            val snack = remember { androidx.compose.material3.SnackbarHostState() }
+            androidx.compose.runtime.CompositionLocalProvider(com.uru2904.mtracker.ui.LocalSnack provides snack) {
             var tab by remember { mutableStateOf(Tab.Hoy) }
             androidx.activity.compose.BackHandler(enabled = tab != Tab.Hoy) { tab = Tab.Hoy }
             LaunchedEffect(sharedUri.value) { if (sharedUri.value != null) tab = Tab.Hoy }
@@ -109,7 +112,7 @@ class MainActivity : ComponentActivity() {
                                         val r = HevyImporter(db).import(text)
                                         "Hevy: ${r.added} sesiones nuevas, ${r.skipped} ya estaban"
                                     } catch (e: Exception) { "No se pudo importar: ${e.message}" }
-                                    android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
+                                    snack.say(msg)
                                 }
                             }
                             com.uru2904.mtracker.ui.GymScreen(db) {
@@ -122,8 +125,10 @@ class MainActivity : ComponentActivity() {
                         Tab.Ajustes -> com.uru2904.mtracker.ui.SettingsScreen(db) { tab = Tab.Hoy }
                         else -> InfoCard("${tab.label}: próximamente")
                     }
+                    androidx.compose.material3.SnackbarHost(snack, Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(12.dp))
                 }
                 TabBar(if (tab.inBar) tab else Tab.Hoy) { tab = it }
+            }
             }
         } }
     }

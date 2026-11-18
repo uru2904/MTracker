@@ -77,6 +77,7 @@ import java.util.Locale
 @Composable
 fun ScaleScreen(db: AppDatabase) {
     val context = LocalContext.current
+    val snack = LocalSnack.current
     val scope = rememberCoroutineScope()
     val scanner = remember { ScaleScanner(context) }
     val health = remember { HealthRepository(context) }
@@ -356,10 +357,14 @@ fun ScaleScreen(db: AppDatabase) {
             title = "¿Borrar esta pesada?",
             text = "${num(w.kg)} kg se borra de la app y de Health Connect.",
             onConfirm = {
-                scope.launch {
+                AppScope.launch {
                     db.weights().delete(w)
                     com.uru2904.mtracker.sync.WeightImport.markDeleted(context, w.timestamp)
-                    runCatching { health.deleteWeight(Instant.ofEpochMilli(w.timestamp)) }
+                    snack.undoable(
+                        "Pesada borrada",
+                        undo = { db.weights().insert(w); com.uru2904.mtracker.sync.WeightImport.unmarkDeleted(context, w.timestamp) },
+                        commit = { runCatching { health.deleteWeight(Instant.ofEpochMilli(w.timestamp)) } },
+                    )
                 }
             },
             onDismiss = { toDelete = null },

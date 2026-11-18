@@ -92,6 +92,7 @@ fun MealsScreen(db: AppDatabase) {
     var showFoods by remember { mutableStateOf(false) }
     var toDelete by remember { mutableStateOf<MealEntry?>(null) }
     var editingMeal by remember { mutableStateOf<MealEntry?>(null) }
+    val snack = LocalSnack.current
     val scope = rememberCoroutineScope()
 
     // Sincronización con la planilla (buzón del chat)
@@ -229,7 +230,7 @@ fun MealsScreen(db: AppDatabase) {
             ) { Text("+ Agregar", color = Color.White, fontSize = Type.Large) }
             // Abre el chat de Claude donde se cargan las comidas; al volver, la pantalla sincroniza sola.
             Button(
-                onClick = { openClaudeChat(context) },
+                onClick = { if (!openClaudeChat(context)) snack.say("No se pudo abrir Claude") },
                 colors = ButtonDefaults.buttonColors(containerColor = Surface2),
                 modifier = Modifier.weight(1f).height(52.dp),
             ) {
@@ -266,10 +267,15 @@ fun MealsScreen(db: AppDatabase) {
             title = "¿Borrar esta comida?",
             text = "\"${m.description}\" se borra de la app y de la planilla.",
             onConfirm = {
-                scope.launch {
+                // Se borra en la app al toque; en la planilla recién cuando pasa el "Deshacer".
+                AppScope.launch {
                     if (m.pendingOp == "add") db.meals().delete(m)
                     else db.meals().update(m.copy(pendingOp = "delete"))
-                    doSync(interactive = false)
+                    snack.undoable(
+                        "Comida borrada",
+                        undo = { if (m.pendingOp == "add") db.meals().insert(m.copy(id = 0)) else db.meals().update(m) },
+                        commit = { runCatching { doSync(interactive = false) } },
+                    )
                 }
             },
             onDismiss = { toDelete = null },
@@ -359,6 +365,7 @@ private suspend fun searchFoods(db: AppDatabase, q: String): List<FoodItem> {
 
 @Composable
 private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealEntry, Boolean) -> Unit) {
+    val addSnack = remember { androidx.compose.material3.SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var type by remember { mutableStateOf(defaultType()) }
     var query by remember { mutableStateOf("") }
@@ -382,7 +389,7 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
     val tCarbs = items.sumOf { it.carbs * it.qty }
     val tFat = items.sumOf { it.fat * it.qty }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) { DialogWithSnack(addSnack) {
         Column(
             Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -548,8 +555,8 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                 ) { Text(if (valid) "Guardar" else "Sumá un alimento", color = if (valid) Color.White else Muted) }
             }
         }
-    }
-    editingFood?.let { f -> FoodEditor(db, f) { editingFood = null } }
+    }}
+    editingFood?.let { f -> FoodEditor(db, f, addSnack) { editingFood = null } }
 }
 
 /** Tipo de comida sugerido según la hora. */
@@ -591,10 +598,11 @@ private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<FoodItem?>(null) }
     val scope = rememberCoroutineScope()
+    val snack = remember { androidx.compose.material3.SnackbarHostState() }
     val shown = all.filter { it.source != "argenfood" || it.pinned }
         .filter { filter.isBlank() || it.name.contains(filter.trim(), ignoreCase = true) }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) { DialogWithSnack(snack) {
         Column(
             Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -618,23 +626,25 @@ private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
             )
             if (shown.isEmpty()) Text("No hay alimentos que coincidan.", color = Muted, fontSize = Type.Body)
         }
-    }
+    }}
 
-    editing?.let { f -> FoodEditor(db, f) { editing = null } }
+    editing?.let { f -> FoodEditor(db, f, snack) { editing = null } }
     deleting?.let { f ->
         ConfirmDialog(
             title = "¿Borrar este alimento?",
             text = "\"${f.name}\" se borra de tus alimentos.",
-            onConfirm = { scope.launch { db.foods().delete(f) } },
+            onConfirm = {
+                AppScope.launch { db.foods().delete(f); snack.undoable("Alimento borrado", undo = { db.foods().insert(f) }) }
+            },
             onDismiss = { deleting = null },
         )
     }
-    if (creating) FoodEditor(db, null) { creating = false }
+    if (creating) FoodEditor(db, null, snack) { creating = false }
 }
 
 /** Editor de un alimento: crear (initial = null), modificar o borrar. */
 @Composable
-private fun FoodEditor(db: AppDatabase, initial: FoodItem?, onClose: () -> Unit) {
+private fun FoodEditor(db: AppDatabase, initial: FoodItem?, snack: androidx.compose.material3.SnackbarHostState, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var portion by remember { mutableStateOf(initial?.portion ?: "") }
@@ -697,7 +707,10 @@ private fun FoodEditor(db: AppDatabase, initial: FoodItem?, onClose: () -> Unit)
                 if (confirmDelete) ConfirmDialog(
                     title = "¿Borrar este alimento?",
                     text = "\"${initial.name}\" se borra de tus alimentos.",
-                    onConfirm = { scope.launch { db.foods().delete(initial); onClose() } },
+                    onConfirm = {
+                        AppScope.launch { db.foods().delete(initial); snack.undoable("Alimento borrado", undo = { db.foods().insert(initial) }) }
+                        onClose()
+                    },
                     onDismiss = { confirmDelete = false },
                 )
                 Text("Borrar un alimento no cambia las comidas que ya cargaste con él.", color = Muted, fontSize = Type.Small)
@@ -838,13 +851,11 @@ private fun FoodList(
 
 
 /** Abre el chat de Claude configurado en Ajustes (en la app de Claude si está instalada). */
-fun openClaudeChat(context: android.content.Context) {
+fun openClaudeChat(context: android.content.Context): Boolean {
     val uri = android.net.Uri.parse(com.uru2904.mtracker.data.AppSettings.claudeChatUrl)
     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
     val inApp = android.content.Intent(intent).setPackage("com.anthropic.claude")
-    runCatching { context.startActivity(inApp) }.recoverCatching { context.startActivity(intent) }.onFailure {
-        android.widget.Toast.makeText(context, "No se pudo abrir Claude", android.widget.Toast.LENGTH_SHORT).show()
-    }
+    return runCatching { context.startActivity(inApp) }.recoverCatching { context.startActivity(intent) }.isSuccess
 }
 
 
