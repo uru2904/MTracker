@@ -44,7 +44,6 @@ object AppSettings {
                 anchorMonday = p.getString("anchorMonday", null)?.let { LocalDate.parse(it) } ?: d.anchorMonday,
                 anchorShift = p.getString("anchorShift", null)?.let { Shift.valueOf(it) } ?: d.anchorShift,
                 rotation = p.getString("rotation", null)?.split(",")?.map { Shift.valueOf(it) } ?: d.rotation,
-                hours = Shift.values().associateWith { s -> window(p.getString("hours.$s", null)) ?: d.hours.getValue(s) },
                 sleep = Shift.values().associateWith { s -> window(p.getString("sleep.$s", null)) ?: d.sleep.getValue(s) },
                 cutoffNight = p.getString("cutoffNight", null)?.let { LocalTime.parse(it) } ?: d.cutoffNight,
                 cutoffOther = p.getString("cutoffOther", null)?.let { LocalTime.parse(it) } ?: d.cutoffOther,
@@ -54,7 +53,7 @@ object AppSettings {
             putString("anchorMonday", c.anchorMonday.toString())
             putString("anchorShift", c.anchorShift.name)
             putString("rotation", c.rotation.joinToString(",") { it.name })
-            c.hours.forEach { (s, w) -> putString("hours.$s", w.str()) }
+            remove("hours.TM"); remove("hours.TT"); remove("hours.TN")
             c.sleep.forEach { (s, w) -> putString("sleep.$s", w.str()) }
             putString("cutoffNight", c.cutoffNight.toString())
             putString("cutoffOther", c.cutoffOther.toString())

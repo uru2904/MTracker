@@ -164,13 +164,6 @@ fun SettingsScreen(db: AppDatabase, onBack: () -> Unit) {
                     }
                 }
             }
-            Section("Horario de cada turno") {
-                Shift.values().forEach { s ->
-                    Item(shiftNames.getValue(s), range(cal.hours(s))) {
-                        editor = Editor.Range("Horario ${shiftNames.getValue(s)}", cal.hours(s)) { w -> saveShifts(shifts.copy(hours = shifts.hours + (s to w))) }
-                    }
-                }
-            }
             Section("Sueño esperado por turno") {
                 Shift.values().forEach { s ->
                     val w = shifts.sleep.getValue(s)
