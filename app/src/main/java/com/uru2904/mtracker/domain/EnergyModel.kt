@@ -17,7 +17,8 @@ data class CheckIn(
 
 /**
  * Gasto energético real a partir de lo que comiste y la tendencia de peso.
- *  - Tendencia: media móvil exponencial diaria del peso (alfa 0,1), así el agua y la sal no mueven el número.
+ *  - Tendencia: recta de regresión sobre las pesadas de la ventana (promedio por día). Filtra el ruido del agua
+ *    sin el atraso de una media móvil (que con pesadas salteadas subestima la bajada).
  *  - Ventana: los últimos 21 días hasta ayer. Solo cuentan los días marcados como completos.
  *  - Gasto = ingesta promedio − pendiente de la tendencia (kg/día) × 7.700.
  *  - Objetivo = gasto − déficit para el ritmo elegido, con un cambio máximo de ±150 kcal por semana y un piso de 1.900.
@@ -60,11 +61,12 @@ object EnergyModel {
         val weighIns = weights.count { inWindow(it.first) }
         val avg = intake.values.takeIf { it.isNotEmpty() }?.average()
 
-        val tr = trend(weights, end).filterKeys(inWindow)
-        // Pendiente por mínimos cuadrados de la tendencia (kg por día)
-        val slope = if (tr.size >= 7) {
-            val xs = tr.keys.map { ChronoUnit.DAYS.between(start, it).toDouble() }
-            val ys = tr.values.toList()
+        val daily = weights.filter { inWindow(it.first) }.groupBy({ it.first }, { it.second }).mapValues { it.value.average() }
+        // Pendiente por mínimos cuadrados (kg por día); hace falta que las pesadas cubran al menos 10 días.
+        val span = if (daily.isEmpty()) 0 else ChronoUnit.DAYS.between(daily.keys.min(), daily.keys.max())
+        val slope = if (daily.size >= 3 && span >= 10) {
+            val xs = daily.keys.map { ChronoUnit.DAYS.between(start, it).toDouble() }
+            val ys = daily.values.toList()
             val mx = xs.average(); val my = ys.average()
             val num = xs.indices.sumOf { (xs[it] - mx) * (ys[it] - my) }
             val den = xs.sumOf { (it - mx) * (it - mx) }
