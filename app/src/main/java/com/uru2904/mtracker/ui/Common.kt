@@ -55,6 +55,8 @@ enum class Tab(val label: String, val on: ImageVector, val off: ImageVector, val
     Sueno("Sueño", Icons.Filled.Bedtime, Icons.Outlined.Bedtime),
     /** Pantalla de uso del celular: se abre desde Inicio, no está en la barra. */
     Uso("Pantalla", Icons.Filled.Home, Icons.Outlined.Home, inBar = false),
+    /** Ajustes: se abre con el engranaje de Inicio. */
+    Ajustes("Ajustes", Icons.Filled.Home, Icons.Outlined.Home, inBar = false),
 }
 
 /** Barra inferior estilo Hevy: ícono + texto, fondo negro, línea fina arriba. */

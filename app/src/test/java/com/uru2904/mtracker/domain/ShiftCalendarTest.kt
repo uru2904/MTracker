@@ -25,4 +25,17 @@ class ShiftCalendarTest {
         assertEquals(LocalDate.of(2026, 11, 16), cal.logicalDate(LocalDateTime.of(2026, 11, 17, 1, 30)))
         assertEquals(LocalDate.of(2026, 11, 17), cal.logicalDate(LocalDateTime.of(2026, 11, 17, 2, 30)))
     }
+
+    @Test fun cambiarTurnoDeEstaSemana() {
+        // Si esta semana (16/11) pasa a ser TN, la siguiente sigue la rotación TT -> TM -> TN -> TT
+        val c = ShiftCalendar(ShiftConfig().withCurrent(LocalDate.of(2026, 11, 18), Shift.TN))
+        assertEquals(Shift.TN, c.shiftForWeekOf(LocalDate.of(2026, 11, 16)))
+        assertEquals(Shift.TT, c.shiftForWeekOf(LocalDate.of(2026, 11, 23)))
+        assertEquals(Shift.TM, c.shiftForWeekOf(LocalDate.of(2026, 11, 30)))
+    }
+
+    @Test fun rotacionInvertida() {
+        val c = ShiftCalendar(ShiftConfig(rotation = listOf(Shift.TT, Shift.TN, Shift.TM)))
+        assertEquals(Shift.TN, c.shiftForWeekOf(LocalDate.of(2026, 11, 16)))
+    }
 }

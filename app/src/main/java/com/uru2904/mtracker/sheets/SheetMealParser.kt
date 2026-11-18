@@ -14,7 +14,7 @@ import java.time.ZoneId
  * (por ejemplo 00:56), el momento real es el día calendario siguiente.
  */
 object SheetMealParser {
-    fun parse(rows: List<List<String>>, calendar: ShiftCalendar = ShiftCalendar(), zone: ZoneId = ZoneId.systemDefault()): List<MealEntry> =
+    fun parse(rows: List<List<String>>, calendar: ShiftCalendar = com.uru2904.mtracker.data.AppSettings.calendar(), zone: ZoneId = ZoneId.systemDefault()): List<MealEntry> =
         rows.mapNotNull { r ->
             val cell = { i: Int -> r.getOrNull(i)?.trim().orEmpty() }
             val date = parseDate(cell(0)) ?: return@mapNotNull null

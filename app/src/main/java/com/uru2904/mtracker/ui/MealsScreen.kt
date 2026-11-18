@@ -76,7 +76,7 @@ private val MealTypes = listOf("Desayuno", "Almuerzo", "Merienda", "Cena", "Snac
 
 @Composable
 fun MealsScreen(db: AppDatabase) {
-    val calendar = remember { ShiftCalendar() }
+    val calendar = remember { com.uru2904.mtracker.data.AppSettings.calendar() }
     val today = remember { calendar.logicalDate(LocalDateTime.now()) }
     var date by remember { mutableStateOf(today) }
     val key = date.toString()

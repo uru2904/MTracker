@@ -67,11 +67,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.uru2904.mtracker.data.AppSettings.init(this)
         val health = HealthRepository(this)
         val db = AppDatabase.get(this)
         handleIntent(intent)
         com.uru2904.mtracker.sync.SyncWorker.schedule(this)
-        com.uru2904.mtracker.data.Live.warmUp(db, com.uru2904.mtracker.domain.ShiftCalendar().logicalDate(java.time.LocalDateTime.now()).toString())
+        com.uru2904.mtracker.data.Live.warmUp(db, com.uru2904.mtracker.data.AppSettings.calendar().logicalDate(java.time.LocalDateTime.now()).toString())
         lifecycleScope.launch {
             FoodSeed.ensure(db)
             runCatching { FoodSeed.loadArgenfood(db, this@MainActivity) }
@@ -118,6 +119,7 @@ class MainActivity : ComponentActivity() {
                         Tab.Cuerpo -> com.uru2904.mtracker.ui.ScaleScreen(db)
                         Tab.Sueno -> com.uru2904.mtracker.ui.SleepScreen()
                         Tab.Uso -> com.uru2904.mtracker.ui.ScreenTimeScreen(db) { tab = Tab.Hoy }
+                        Tab.Ajustes -> com.uru2904.mtracker.ui.SettingsScreen(db) { tab = Tab.Hoy }
                         else -> InfoCard("${tab.label}: próximamente")
                     }
                 }

@@ -48,7 +48,7 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 /** Ritmo de bajada elegido (kg por semana). */
-const val LOSS_KG_PER_WEEK = 0.4
+val LOSS_KG_PER_WEEK: Double get() = com.uru2904.mtracker.data.AppSettings.lossKgPerWeek
 
 private fun prefs(c: Context) = c.getSharedPreferences("checkin", Context.MODE_PRIVATE)
 

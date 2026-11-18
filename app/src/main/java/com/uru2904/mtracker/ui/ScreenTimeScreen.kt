@@ -59,7 +59,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-const val SCREEN_LIMIT_MIN = 180L
+val SCREEN_LIMIT_MIN: Long get() = com.uru2904.mtracker.data.AppSettings.screenLimitMin
 private val es = Locale("es", "AR")
 private val Over = Color(0xFFF87171)
 private val Near = Color(0xFFF2C14E)

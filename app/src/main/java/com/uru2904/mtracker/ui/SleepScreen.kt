@@ -74,7 +74,7 @@ fun SleepScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val health = remember { HealthRepository(context) }
-    val calendar = remember { ShiftCalendar() }
+    val calendar = remember { com.uru2904.mtracker.data.AppSettings.calendar() }
     @Suppress("UNCHECKED_CAST")
     var nights by remember { mutableStateOf(com.uru2904.mtracker.data.UiCache.sleepNights as? List<SleepNight>) }
     var error by remember { mutableStateOf<String?>(null) }

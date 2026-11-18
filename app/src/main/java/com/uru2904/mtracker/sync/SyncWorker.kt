@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit
  */
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
+        com.uru2904.mtracker.data.AppSettings.init(applicationContext)
         val db = AppDatabase.get(applicationContext)
         val sync = SheetsSync(applicationContext, db)
         if (sync.sheetId == null && !com.uru2904.mtracker.usage.DeviceRole.isTablet(applicationContext)) return Result.success()

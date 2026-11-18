@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -81,7 +82,7 @@ data class HomeHealth(val steps: Long, val night: SleepNight?, val exercises: Li
 fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableState<Uri?>, onNavigate: (Tab) -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val calendar = remember { ShiftCalendar() }
+    val calendar = remember { com.uru2904.mtracker.data.AppSettings.calendar() }
     val zone = ZoneId.systemDefault()
     val today = remember { calendar.logicalDate(LocalDateTime.now()) }
 
@@ -156,7 +157,10 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
         Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("MTracker", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                Text("  v$version", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp))
+                Text("  v$version", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp).weight(1f))
+                androidx.compose.material3.IconButton(onClick = { onNavigate(Tab.Ajustes) }) {
+                    androidx.compose.material3.Icon(Icons.Outlined.Settings, "Ajustes", tint = Soft)
+                }
             }
             if (daysLeft != null && daysLeft >= 0) Text("Faltan $daysLeft días para ${goal?.name}", color = Muted, fontSize = 13.sp)
         }
