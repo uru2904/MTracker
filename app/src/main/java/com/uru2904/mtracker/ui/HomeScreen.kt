@@ -1,5 +1,6 @@
 package com.uru2904.mtracker.ui
 
+import androidx.compose.material3.minimumInteractiveComponentSize
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Canvas
@@ -154,15 +155,13 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
         }
         val endDate = goal?.endDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         val daysLeft = endDate?.let { ChronoUnit.DAYS.between(LocalDate.now(), it) }
-        Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 8.dp)) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text("MTracker", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
-                Text("  v$version", color = Muted, fontSize = Type.Small, modifier = Modifier.padding(bottom = 5.dp).weight(1f))
-                androidx.compose.material3.IconButton(onClick = { onNavigate(Tab.Ajustes) }) {
-                    androidx.compose.material3.Icon(Icons.Outlined.Settings, "Ajustes", tint = Soft)
-                }
+        ScreenHeader(
+            "MTracker",
+            subtitle = "v$version" + if (daysLeft != null && daysLeft >= 0) " · Faltan $daysLeft días para ${goal?.name}" else "",
+        ) {
+            androidx.compose.material3.IconButton(onClick = { onNavigate(Tab.Ajustes) }) {
+                androidx.compose.material3.Icon(Icons.Outlined.Settings, "Ajustes", tint = Soft)
             }
-            if (daysLeft != null && daysLeft >= 0) Text("Faltan $daysLeft días para ${goal?.name}", color = Muted, fontSize = Type.Small)
         }
 
         RefreshBox(refreshing = refreshing, onRefresh = { scope.launch { refreshing = true; refresh(); loadUsageCard(); refreshing = false } }) {
@@ -341,7 +340,7 @@ private fun Notice(text: String, action: String?, onAction: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text, color = Yellow, fontSize = Type.Small, modifier = Modifier.weight(1f))
-        action?.let { Text(it, color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onAction() }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp)) }
+        action?.let { Text(it, color = AccentLight, fontSize = Type.Body, modifier = Modifier.minimumInteractiveComponentSize().clickable { onAction() }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp)) }
     }
 }
 

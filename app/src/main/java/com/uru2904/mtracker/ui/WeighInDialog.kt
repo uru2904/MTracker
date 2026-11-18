@@ -1,5 +1,6 @@
 package com.uru2904.mtracker.ui
 
+import androidx.compose.material3.minimumInteractiveComponentSize
 import android.app.Activity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -253,7 +254,7 @@ private fun StepPending(title: String, detail: String, waiting: Boolean, onSkip:
             Text(title, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp))
         }
         Text(detail, color = Muted, fontSize = Type.Small)
-        Text("Ahora no", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onSkip() }.padding(vertical = 4.dp))
+        Text("Ahora no", color = AccentLight, fontSize = Type.Body, modifier = Modifier.minimumInteractiveComponentSize().clickable { onSkip() }.padding(vertical = 4.dp))
     }
 }
 

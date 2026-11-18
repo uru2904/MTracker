@@ -1,5 +1,6 @@
 package com.uru2904.mtracker.ui
 
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -70,12 +71,8 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
     fun dateOf(w: WorkoutSession) = Instant.ofEpochMilli(w.start).atZone(zone).toLocalDate()
 
     Column(Modifier.fillMaxSize().background(Color.Black)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Gym", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
-            Text("Importar CSV", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onImport() }.padding(8.dp))
+        ScreenHeader("Gym") {
+            androidx.compose.material3.TextButton(onClick = onImport) { Text("Importar CSV", color = AccentLight, fontSize = Type.Body) }
         }
 
         // ---- Fijo: semáforos ----
@@ -256,7 +253,7 @@ private fun SessionDetail(db: AppDatabase, w: WorkoutSession, onClose: () -> Uni
                         color = Muted, fontSize = Type.Small,
                     )
                 }
-                Text("Cerrar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onClose() }.padding(8.dp))
+                Text("Cerrar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.minimumInteractiveComponentSize().clickable { onClose() }.padding(8.dp))
             }
             val volume = sets.sumOf { (it.weightKg ?: 0.0) * (it.reps ?: 0) }
             Text("Volumen total: %,d kg · ${sets.size} series".format(es, volume.toLong()), color = Soft, fontSize = Type.Body)

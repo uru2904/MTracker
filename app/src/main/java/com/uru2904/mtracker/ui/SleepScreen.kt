@@ -101,28 +101,20 @@ fun SleepScreen() {
 
     Column(Modifier.fillMaxSize().background(Color.Black)) {
         // Encabezado fijo: título y noche seleccionada
-        Text("Sueño", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 4.dp))
-        if (night != null) {
-            val idx = list.indexOf(night)
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("‹", color = if (idx < list.lastIndex) Soft else Disabled, fontSize = Type.Title,
-                    modifier = Modifier.clickable(enabled = idx < list.lastIndex) { selected = list[idx + 1].date }.padding(12.dp))
-                Text(
-                    if (night.date == LocalDate.now()) "Hoy" else DateTimeFormatter.ofPattern("EEE d 'de' MMM", es).format(night.date),
-                    color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold,
-                )
-                Text("›", color = if (idx > 0) Soft else Disabled, fontSize = Type.Title,
-                    modifier = Modifier.clickable(enabled = idx > 0) { selected = list[idx - 1].date }.padding(12.dp))
-            }
+        ScreenHeader("Sueño")
+        val sel = selected
+        if (sel != null && list.isNotEmpty()) {
+            DateSelector(sel, min = list.last().date, max = list.first().date, onChange = { selected = it })
         }
 
         RefreshBox(refreshing = pulling, onRefresh = { scope.launch { pulling = true; load(); pulling = false } }) {
             Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 20.dp),
+                Modifier.fillMaxSize()
+                    .swipeDays(
+                        onPrev = { selected?.let { d -> if (list.isNotEmpty() && d > list.last().date) selected = d.minusDays(1) } },
+                        onNext = { selected?.let { d -> if (list.isNotEmpty() && d < list.first().date) selected = d.plusDays(1) } },
+                    )
+                    .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 when {
@@ -130,7 +122,8 @@ fun SleepScreen() {
                     nights == null -> Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Soft, strokeWidth = 2.dp)
                     }
-                    night == null -> InfoCard("Sin datos de sueño en los últimos 30 días.")
+                    list.isEmpty() -> EmptyState("Sin datos de sueño en los últimos 30 días. Revisá que el reloj sincronice con Samsung Health.")
+                    night == null -> EmptyState("No hay sueño registrado esa noche.")
                     else -> {
                         val m = night.minutes
                         val sc = SleepScorer.score(m)

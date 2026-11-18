@@ -1,5 +1,6 @@
 package com.uru2904.mtracker.ui
 
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -80,7 +81,7 @@ fun WeightDetailDialog(db: AppDatabase, w: WeightEntry, onClose: () -> Unit) {
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM, HH:mm", es).format(at.atZone(zone)), color = Muted, fontSize = Type.Body)
-                Text("Cerrar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onClose() }.padding(8.dp))
+                Text("Cerrar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.minimumInteractiveComponentSize().clickable { onClose() }.padding(8.dp))
             }
             Text("${num(w.kg)} kg", color = Color.White, fontSize = Type.Hero, fontWeight = FontWeight.Bold)
 

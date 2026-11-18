@@ -1,5 +1,6 @@
 package com.uru2904.mtracker.ui
 
+import androidx.compose.material3.minimumInteractiveComponentSize
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -266,7 +267,7 @@ private fun ResultStep(r: CheckIn, g: GoalPeriod?, onBack: () -> Unit, close: (S
         else "Objetivo nuevo: %,d kcal (antes %,d) para bajar ${num(LOSS_KG_PER_WEEK)} kg por semana.".format(es, proposed, current),
         color = Color.White, fontSize = Type.Body,
     )
-    Text("‹ Revisar días", color = AccentLight, fontSize = Type.Small, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 4.dp))
+    Text("‹ Revisar días", color = AccentLight, fontSize = Type.Small, modifier = Modifier.minimumInteractiveComponentSize().clickable(onClick = onBack).padding(vertical = 4.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Button(onClick = { close("Mantener", null) }, colors = ButtonDefaults.buttonColors(containerColor = Surface2),
             modifier = Modifier.weight(1f)) { Text("Mantener", color = Color.White) }

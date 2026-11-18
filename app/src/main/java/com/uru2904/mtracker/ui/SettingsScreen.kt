@@ -108,10 +108,7 @@ fun SettingsScreen(db: AppDatabase, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize()) {
         // Encabezado fijo
-        Row(Modifier.padding(start = 4.dp, end = 20.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = Color.White) }
-            Text("Ajustes", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
-        }
+        ScreenHeader("Ajustes", onBack = onBack)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
 

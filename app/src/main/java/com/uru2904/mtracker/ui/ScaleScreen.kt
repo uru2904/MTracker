@@ -1,5 +1,6 @@
 package com.uru2904.mtracker.ui
 
+import androidx.compose.material3.minimumInteractiveComponentSize
 import android.Manifest
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -177,10 +178,7 @@ fun ScaleScreen(db: AppDatabase) {
     val es = Locale("es", "AR")
 
     Column(Modifier.fillMaxSize().background(Color.Black)) {
-        Text(
-            "Cuerpo", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 8.dp),
-        )
+        ScreenHeader("Cuerpo")
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -232,7 +230,7 @@ fun ScaleScreen(db: AppDatabase) {
             // ---- Medidas (tocar una la grafica) ----
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Tocá una para ver su gráfico", color = Muted, fontSize = Type.Small)
-                Text("+ Cargar medidas", color = AccentLight, fontSize = Type.Small, modifier = Modifier.clickable { addMeasures = true }.padding(4.dp))
+                Text("+ Cargar medidas", color = AccentLight, fontSize = Type.Small, modifier = Modifier.minimumInteractiveComponentSize().clickable { addMeasures = true }.padding(4.dp))
             }
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
                 val rows = listOf<Pair<Long?, String>>(null to "Peso") + types.map { it.id to it.name }
@@ -276,7 +274,7 @@ fun ScaleScreen(db: AppDatabase) {
                         color = if (live?.stabilized == true) Color.White else Soft,
                         fontSize = Type.Title, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
                     )
-                    Text("Reiniciar", color = AccentLight, fontSize = Type.Small, modifier = Modifier.clickable { launcher.launch(perms) }.padding(4.dp))
+                    Text("Reiniciar", color = AccentLight, fontSize = Type.Small, modifier = Modifier.minimumInteractiveComponentSize().clickable { launcher.launch(perms) }.padding(4.dp))
                 }
                 Text(status, color = Muted, fontSize = Type.Small)
                 Text(

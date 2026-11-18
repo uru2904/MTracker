@@ -1,5 +1,6 @@
 package com.uru2904.mtracker.ui
 
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -135,21 +136,14 @@ fun MealsScreen(db: AppDatabase) {
 
     // El encabezado queda fijo; al deslizar para actualizar solo baja la lista.
     Column(Modifier.fillMaxSize().background(Color.Black)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("‹", color = Soft, fontSize = Type.Title, modifier = Modifier.clickable { date = date.minusDays(1) }.padding(12.dp))
-            Text(
-                if (date == today) "Hoy" else DateTimeFormatter.ofPattern("EEE d MMM", es).format(date),
-                color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold,
-            )
-            Text(
-                "›", color = if (date < today) Soft else Disabled, fontSize = Type.Title,
-                modifier = Modifier.clickable(enabled = date < today) { date = date.plusDays(1) }.padding(12.dp),
-            )
-        }
+        ScreenHeader("Comidas")
+        DateSelector(date, min = null, max = today, onChange = { date = it })
 
         // Aviso de planilla y totales del día: fijos, no se mueven al deslizar para actualizar.
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth()
+                .swipeDays(onPrev = { date = date.minusDays(1) }, onNext = { if (date < today) date = date.plusDays(1) })
+                .padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
         if (sync.sheetId == null || syncMsg != null) Row(
@@ -423,15 +417,15 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                         )
                         Icon(
                             Icons.Outlined.Delete, contentDescription = "Quitar", tint = Muted,
-                            modifier = Modifier.padding(start = 8.dp).size(22.dp).clickable { items.removeAt(idx) },
+                            modifier = Modifier.padding(start = 8.dp).minimumInteractiveComponentSize().clickable { items.removeAt(idx) },
                         )
                     } else {
-                        Text("−", color = Color.White, fontSize = Type.Headline, modifier = Modifier.clickable {
+                        androidx.compose.material3.IconButton(onClick = {
                             if (it.qty <= 0.5) items.removeAt(idx) else items[idx] = it.copy(qty = it.qty - 0.5)
-                        }.padding(horizontal = 12.dp, vertical = 4.dp))
-                        Text("+", color = Color.White, fontSize = Type.Headline, modifier = Modifier.clickable {
+                        }) { Icon(androidx.compose.material.icons.Icons.Filled.Remove, "Menos", tint = Color.White) }
+                        androidx.compose.material3.IconButton(onClick = {
                             items[idx] = it.copy(qty = it.qty + 0.5)
-                        }.padding(horizontal = 12.dp, vertical = 4.dp))
+                        }) { Icon(androidx.compose.material.icons.Icons.Filled.Add, "Más", tint = Color.White) }
                     }
                 }
             }
@@ -588,7 +582,7 @@ private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Mis alimentos (${shown.size})", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
-                Text("Cerrar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onDismiss() }.padding(8.dp))
+                Text("Cerrar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.minimumInteractiveComponentSize().clickable { onDismiss() }.padding(8.dp))
             }
             field(filter, "Filtrar", { filter = it })
             Button(

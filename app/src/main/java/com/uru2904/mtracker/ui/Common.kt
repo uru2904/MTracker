@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -222,4 +225,130 @@ fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
             ) { Icon(androidx.compose.material.icons.Icons.Outlined.Delete, contentDescription = "Borrar", tint = Danger) }
         },
     ) { content() }
+}
+
+/** Encabezado igual en todas las pantallas: flecha atrás opcional, título, subtítulo y acciones a la derecha. */
+@Composable
+fun ScreenHeader(
+    title: String,
+    subtitle: String? = null,
+    onBack: (() -> Unit)? = null,
+    trailing: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = if (onBack != null) 4.dp else 20.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)
+            .heightIn(min = 48.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (onBack != null) androidx.compose.material3.IconButton(onClick = onBack) {
+            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = Color.White)
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
+            if (subtitle != null) Text(subtitle, color = Muted, fontSize = Type.Small)
+        }
+        trailing()
+    }
+}
+
+/**
+ * Selector de día: flechas de 48 dp, la fecha abre un calendario y se puede deslizar
+ * a los costados (con [swipeDays]) para cambiar de día.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DateSelector(
+    date: java.time.LocalDate,
+    min: java.time.LocalDate?,
+    max: java.time.LocalDate,
+    onChange: (java.time.LocalDate) -> Unit,
+    label: String = dayLabel(date),
+) {
+    var picking by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val canPrev = min == null || date > min
+    val canNext = date < max
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.IconButton(onClick = { onChange(date.minusDays(1)) }, enabled = canPrev) {
+            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Día anterior", tint = if (canPrev) Soft else Disabled)
+        }
+        Row(
+            Modifier.weight(1f).clickable { picking = true }.padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
+            Icon(androidx.compose.material.icons.Icons.Filled.ArrowDropDown, "Elegir fecha", tint = Muted)
+        }
+        androidx.compose.material3.IconButton(onClick = { onChange(date.plusDays(1)) }, enabled = canNext) {
+            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight, "Día siguiente", tint = if (canNext) Soft else Disabled)
+        }
+    }
+    if (picking) {
+        val utc = java.time.ZoneOffset.UTC
+        val state = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = date.atStartOfDay().toInstant(utc).toEpochMilli(),
+            selectableDates = object : androidx.compose.material3.SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    val d = java.time.Instant.ofEpochMilli(utcTimeMillis).atZone(utc).toLocalDate()
+                    return !d.isAfter(max) && (min == null || !d.isBefore(min))
+                }
+            },
+        )
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { onChange(java.time.Instant.ofEpochMilli(it).atZone(utc).toLocalDate()) }
+                    picking = false
+                }) { Text("Ir") }
+            },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancelar", color = Color.White) } },
+        ) { androidx.compose.material3.DatePicker(state = state, title = null) }
+    }
+}
+
+/** "Hoy", "Ayer" o "mar 17 nov". */
+fun dayLabel(d: java.time.LocalDate, today: java.time.LocalDate = java.time.LocalDate.now()): String = when (d) {
+    today -> "Hoy"
+    today.minusDays(1) -> "Ayer"
+    else -> java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale("es", "AR")).format(d).replace(".", "")
+}
+
+/** Deslizar a los costados para ir al día anterior (derecha) o siguiente (izquierda). */
+fun Modifier.swipeDays(onPrev: () -> Unit, onNext: () -> Unit): Modifier = this.then(
+    Modifier.pointerInput(Unit) {
+        var total = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { total = 0f },
+            onDragEnd = {
+                val limit = 80.dp.toPx()
+                if (total > limit) onPrev() else if (total < -limit) onNext()
+            },
+        ) { _, dx -> total += dx }
+    }
+)
+
+/** Bloque gris mientras carga (en lugar de dejar la pantalla vacía). */
+@Composable
+fun Skeleton(height: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "sk")
+    val a by t.animateFloat(
+        0.35f, 0.7f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(800), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "a",
+    )
+    Box(modifier.fillMaxWidth().height(height).graphicsLayer { alpha = a }.background(Surface2, RoundedCornerShape(16.dp)))
+}
+
+/** Estado vacío con una acción concreta. */
+@Composable
+fun EmptyState(text: String, action: String? = null, onAction: (() -> Unit)? = null) {
+    Column(
+        Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(text, color = Soft, fontSize = Type.Body, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        if (action != null && onAction != null) androidx.compose.material3.Button(
+            onClick = onAction, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Accent),
+        ) { Text(action, color = Color.White) }
+    }
 }

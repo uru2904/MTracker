@@ -1,5 +1,6 @@
 package com.uru2904.mtracker.ui
 
+import androidx.compose.material3.minimumInteractiveComponentSize
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -119,11 +120,7 @@ fun ScreenTimeScreen(db: AppDatabase, onBack: () -> Unit) {
     val d = data
 
     Column(Modifier.fillMaxSize().background(Color.Black)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White,
-                modifier = Modifier.clickable { onBack() }.padding(12.dp))
-            Text("Pantalla", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
-        }
+        ScreenHeader("Pantalla", onBack = onBack)
 
         // ---- Fijo: total del día seleccionado y gráfico ----
         val total = d?.total(selected) ?: 0
@@ -133,7 +130,7 @@ fun ScreenTimeScreen(db: AppDatabase, onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Falta el permiso de acceso al uso", color = Near, fontSize = Type.Small, modifier = Modifier.weight(1f))
-                Text("Activar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable {
+                Text("Activar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.minimumInteractiveComponentSize().clickable {
                     context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
                 }.padding(start = 12.dp))
             }
@@ -142,7 +139,7 @@ fun ScreenTimeScreen(db: AppDatabase, onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Sin conexión con la planilla: falta el uso de la tablet", color = Near, fontSize = Type.Small, modifier = Modifier.weight(1f))
-                Text("Conectar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable {
+                Text("Conectar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.minimumInteractiveComponentSize().clickable {
                     scope.launch {
                         (runCatching { sync.authorize(context) }.getOrNull() as? AuthStep.NeedsConsent)?.let {
                             consent.launch(IntentSenderRequest.Builder(it.intent.intentSender).build())
@@ -307,6 +304,6 @@ fun TabletScreen(db: AppDatabase, onUseAsPhone: () -> Unit) {
             onClick = { scope.launch { connectAndUpload() } }, enabled = !busy,
             colors = ButtonDefaults.buttonColors(containerColor = Card), modifier = Modifier.fillMaxWidth(),
         ) { Text(if (busy) "Subiendo…" else "Subir ahora", color = Color.White) }
-        Text("Usar como celular", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onUseAsPhone() }.padding(vertical = 8.dp))
+        Text("Usar como celular", color = AccentLight, fontSize = Type.Body, modifier = Modifier.minimumInteractiveComponentSize().clickable { onUseAsPhone() }.padding(vertical = 8.dp))
     }
 }
