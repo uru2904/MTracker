@@ -187,6 +187,15 @@ fun SettingsScreen(db: AppDatabase, onBack: () -> Unit) {
                     }
                 }
             }
+            Section("Claude") {
+                var chat by remember { mutableStateOf(AppSettings.claudeChatUrl) }
+                Item("Chat para cargar comidas", if (chat == AppSettings.DEFAULT_CHAT) "El de siempre" else "Personalizado",
+                    sub = "Lo abre el botón \"Con Claude\" en Comidas") {
+                    editor = Editor.Text("Link del chat (copialo desde Claude → Compartir)", chat) { v ->
+                        AppSettings.claudeChatUrl = v.ifBlank { AppSettings.DEFAULT_CHAT }; chat = AppSettings.claudeChatUrl
+                    }
+                }
+            }
             Spacer(Modifier.height(24.dp))
         }
     }

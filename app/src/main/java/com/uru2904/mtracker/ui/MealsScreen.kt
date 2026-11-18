@@ -118,6 +118,13 @@ fun MealsScreen(db: AppDatabase) {
         }
     }
     LaunchedEffect(Unit) { if (sync.sheetId != null) doSync(interactive = false) }
+    // Al volver de Claude (u otra app) trae lo cargado por chat.
+    var resumedOnce by remember { mutableStateOf(false) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        if (resumedOnce && sync.sheetId != null) scope.launch { doSync(interactive = false) }
+        resumedOnce = true
+        onPauseOrDispose { }
+    }
 
     val kcalT = goal?.kcalTarget ?: 2250
     val protT = goal?.proteinTarget ?: 150
@@ -215,11 +222,22 @@ fun MealsScreen(db: AppDatabase) {
         }
         if (meals.isEmpty()) Text("Sin comidas cargadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp))
 
-        Button(
-            onClick = { adding = true },
-            colors = ButtonDefaults.buttonColors(containerColor = Accent),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-        ) { Text("+ Agregar comida", color = Color.White, fontSize = 16.sp) }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = { adding = true },
+                colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                modifier = Modifier.weight(1f).height(52.dp),
+            ) { Text("+ Agregar", color = Color.White, fontSize = 16.sp) }
+            // Abre el chat de Claude donde se cargan las comidas; al volver, la pantalla sincroniza sola.
+            Button(
+                onClick = { openClaudeChat(context) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A)),
+                modifier = Modifier.weight(1f).height(52.dp),
+            ) {
+                Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, null, tint = AccentLight, modifier = Modifier.size(18.dp))
+                Text("  Con Claude", color = Color.White, fontSize = 16.sp)
+            }
+        }
         Button(
             onClick = { showFoods = true },
             colors = ButtonDefaults.buttonColors(containerColor = Card),
@@ -801,5 +819,16 @@ private fun FoodList(
                 }
             }
         }
+    }
+}
+
+
+/** Abre el chat de Claude configurado en Ajustes (en la app de Claude si está instalada). */
+fun openClaudeChat(context: android.content.Context) {
+    val uri = android.net.Uri.parse(com.uru2904.mtracker.data.AppSettings.claudeChatUrl)
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    val inApp = android.content.Intent(intent).setPackage("com.anthropic.claude")
+    runCatching { context.startActivity(inApp) }.recoverCatching { context.startActivity(intent) }.onFailure {
+        android.widget.Toast.makeText(context, "No se pudo abrir Claude", android.widget.Toast.LENGTH_SHORT).show()
     }
 }

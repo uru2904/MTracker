@@ -31,6 +31,12 @@ object AppSettings {
         get() = prefs?.getLong("screenLimit", 180L) ?: 180L
         set(v) = edit { putLong("screenLimit", v) }
 
+    /** Chat de Claude donde se cargan las comidas (botón "Con Claude" en Comidas). */
+    const val DEFAULT_CHAT = "https://claude.ai/code/session_01631xpURwXTUBxVKfJa3Yd6"
+    var claudeChatUrl: String
+        get() = prefs?.getString("claudeChat", null) ?: DEFAULT_CHAT
+        set(v) = edit { putString("claudeChat", v) }
+
     private fun window(s: String?): SleepWindow? = s?.split("-")?.takeIf { it.size == 2 }?.let {
         runCatching { SleepWindow(LocalTime.parse(it[0]), LocalTime.parse(it[1])) }.getOrNull()
     }
