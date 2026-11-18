@@ -394,6 +394,23 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
             )
         }
 
+        // Ediciones: se reescribe la fila con el mismo ID (si ya no está en la planilla, se agrega).
+        val updates = pending.filter { it.pendingOp == "update" }
+        if (updates.isNotEmpty()) {
+            val ids = get(id, "Comidas!J:J", token).map { it.firstOrNull().orEmpty() }
+            val data = JSONArray()
+            val lost = JSONArray()
+            updates.forEach { m ->
+                val r = ids.indexOf(m.remoteId)
+                if (r > 0) data.put(JSONObject().put("range", "Comidas!A${r + 1}:J${r + 1}").put("values", JSONArray().put(rowFor(m))))
+                else lost.put(rowFor(m))
+            }
+            if (data.length() > 0) send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values:batchUpdate", token,
+                JSONObject().put("valueInputOption", "RAW").put("data", data))
+            if (lost.length() > 0) send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Comidas!A:J") +
+                ":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS", token, JSONObject().put("values", lost))
+        }
+
         val deletes = pending.filter { it.pendingOp == "delete" }
         if (deletes.isNotEmpty()) {
             val ids = get(id, "Comidas!J:J", token).map { it.firstOrNull().orEmpty() }

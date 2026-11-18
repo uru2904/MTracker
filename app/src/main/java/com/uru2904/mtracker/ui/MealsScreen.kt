@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -90,6 +91,7 @@ fun MealsScreen(db: AppDatabase) {
     var adding by remember { mutableStateOf(false) }
     var showFoods by remember { mutableStateOf(false) }
     var toDelete by remember { mutableStateOf<MealEntry?>(null) }
+    var editingMeal by remember { mutableStateOf<MealEntry?>(null) }
     val scope = rememberCoroutineScope()
 
     // Sincronización con la planilla (buzón del chat)
@@ -213,7 +215,7 @@ fun MealsScreen(db: AppDatabase) {
             meals.forEachIndexed { idx, m ->
                 if (idx > 0) Box(Modifier.fillMaxWidth().padding(start = 64.dp).height(1.dp).background(Track))
                 androidx.compose.runtime.key(m.id, m.remoteId) {
-                    MealRow(m, timeFmt.format(Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()))) { toDelete = m }
+                    MealRow(m, timeFmt.format(Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault())), onClick = { editingMeal = m }) { toDelete = m }
                 }
             }
         }
@@ -242,6 +244,21 @@ fun MealsScreen(db: AppDatabase) {
         ) { Text("Mis alimentos", color = Color.White, fontSize = Type.Body) }
     }
     }
+    }
+
+    editingMeal?.let { m ->
+        MealEditor(
+            m, calendar,
+            onSave = { updated ->
+                editingMeal = null
+                scope.launch {
+                    db.meals().update(if (m.pendingOp == "add") updated else updated.copy(pendingOp = "update"))
+                    doSync(interactive = false)
+                }
+            },
+            onDelete = { editingMeal = null; toDelete = m },
+            onDismiss = { editingMeal = null },
+        )
     }
 
     toDelete?.let { m ->
@@ -697,7 +714,7 @@ private val FatColor = Color(0xFFE879A6)
 /** Fila de la línea de tiempo. Deslizar hacia la izquierda pide confirmación para borrar. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun MealRow(m: MealEntry, time: String, onDelete: () -> Unit) {
+private fun MealRow(m: MealEntry, time: String, onClick: () -> Unit, onDelete: () -> Unit) {
     val current by androidx.compose.runtime.rememberUpdatedState(onDelete)
     val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
         confirmValueChange = {
@@ -716,12 +733,12 @@ private fun MealRow(m: MealEntry, time: String, onDelete: () -> Unit) {
         },
     ) {
         Row(
-            Modifier.fillMaxWidth().background(Card).padding(horizontal = 14.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().background(Card).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Column(Modifier.width(50.dp)) {
                 Text(time, color = Soft, fontSize = Type.Small)
-                if (m.pendingOp == "add") Box(Modifier.padding(top = 6.dp).size(6.dp).background(Color(0xFFB45309), RoundedCornerShape(3.dp)))
+                if (m.pendingOp != null) Box(Modifier.padding(top = 6.dp).size(6.dp).background(Color(0xFFB45309), RoundedCornerShape(3.dp)))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(m.mealType, color = Muted, fontSize = Type.Chart)
@@ -827,5 +844,101 @@ fun openClaudeChat(context: android.content.Context) {
     val inApp = android.content.Intent(intent).setPackage("com.anthropic.claude")
     runCatching { context.startActivity(inApp) }.recoverCatching { context.startActivity(intent) }.onFailure {
         android.widget.Toast.makeText(context, "No se pudo abrir Claude", android.widget.Toast.LENGTH_SHORT).show()
+    }
+}
+
+
+/** Editar una comida cargada: tipo, hora, descripción, macros y escalar la porción. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun MealEditor(
+    m: MealEntry,
+    calendar: com.uru2904.mtracker.domain.ShiftCalendar,
+    onSave: (MealEntry) -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val zone = ZoneId.systemDefault()
+    val date = java.time.LocalDate.parse(m.logicalDate)
+    var type by remember { mutableStateOf(m.mealType) }
+    var time by remember { mutableStateOf(Instant.ofEpochMilli(m.timestamp).atZone(zone).toLocalTime().withSecond(0).withNano(0)) }
+    var desc by remember { mutableStateOf(m.description) }
+    var kcal by remember { mutableStateOf(num(m.kcal)) }
+    var prot by remember { mutableStateOf(num(m.protein)) }
+    var carbs by remember { mutableStateOf(num(m.carbs)) }
+    var fat by remember { mutableStateOf(num(m.fat)) }
+    var factor by remember { mutableStateOf(1.0) }
+    var pickTime by remember { mutableStateOf(false) }
+    fun d(s: String) = s.replace(',', '.').toDoubleOrNull()
+    fun scale(f: Double) {
+        // Siempre sobre los valores originales, para no acumular redondeos.
+        factor = f
+        kcal = num(Math.round(m.kcal * f).toDouble()); prot = num(Math.round(m.protein * f * 10) / 10.0)
+        carbs = num(Math.round(m.carbs * f * 10) / 10.0); fat = num(Math.round(m.fat * f * 10) / 10.0)
+    }
+    val ok = desc.isNotBlank() && listOf(kcal, prot, carbs, fat).all { d(it) != null }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Surface2, titleContentColor = Color.White, textContentColor = Soft,
+        title = { Text("Editar comida") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    MealTypes.forEach { t ->
+                        androidx.compose.material3.FilterChip(selected = type == t, onClick = { type = t }, label = { Text(t) })
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth().clickable { pickTime = true }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Hora", color = Soft, fontSize = Type.Body, modifier = Modifier.weight(1f))
+                    Text(time.toString(), color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
+                }
+                field(desc, "Descripción", { desc = it })
+                Text("Porción", color = Muted, fontSize = Type.Small)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(0.5, 0.75, 1.0, 1.25, 1.5, 2.0).forEach { f ->
+                        androidx.compose.material3.FilterChip(selected = factor == f, onClick = { scale(f) }, label = { Text("×" + num(f)) })
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    field(kcal, "kcal", { kcal = it }, numeric = true, modifier = Modifier.weight(1f))
+                    field(prot, "Prot", { prot = it }, numeric = true, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    field(carbs, "Carbos", { carbs = it }, numeric = true, modifier = Modifier.weight(1f))
+                    field(fat, "Grasas", { fat = it }, numeric = true, modifier = Modifier.weight(1f))
+                }
+                androidx.compose.material3.TextButton(onClick = onDelete) {
+                    Icon(Icons.Outlined.Delete, null, tint = Danger, modifier = Modifier.size(18.dp))
+                    Text("  Borrar comida", color = Danger)
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(enabled = ok, onClick = {
+                // La hora queda dentro del mismo día lógico (ej.: 01:00 en semana de noche = madrugada del día siguiente).
+                var at = java.time.LocalDateTime.of(date, time)
+                if (calendar.logicalDate(at) != date) at = at.plusDays(1)
+                onSave(m.copy(
+                    mealType = type, description = desc.trim(), timestamp = at.atZone(zone).toInstant().toEpochMilli(),
+                    kcal = d(kcal)!!, protein = d(prot)!!, carbs = d(carbs)!!, fat = d(fat)!!,
+                    confidence = if (factor != 1.0) (m.confidence?.let { "$it · porción ×${num(factor)}" } ?: "Porción ×${num(factor)}") else m.confidence,
+                ))
+            }) { Text("Guardar", color = if (ok) AccentLight else Muted) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancelar", color = Color.White) } },
+    )
+    if (pickTime) {
+        val st = androidx.compose.material3.rememberTimePickerState(time.hour, time.minute, is24Hour = true)
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pickTime = false },
+            containerColor = Surface2,
+            text = { androidx.compose.material3.TimePicker(state = st) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { time = java.time.LocalTime.of(st.hour, st.minute); pickTime = false }) { Text("Listo", color = AccentLight) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { pickTime = false }) { Text("Cancelar", color = Color.White) } },
+        )
     }
 }

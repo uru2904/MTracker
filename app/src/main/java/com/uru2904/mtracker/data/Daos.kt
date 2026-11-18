@@ -37,7 +37,9 @@ interface MealDao {
     @Transaction
     suspend fun replaceSynced(meals: List<MealEntry>) {
         deleteSynced()
-        insertAll(meals)
+        // Si hay un cambio pendiente de esa fila (edición o borrado), manda el local.
+        val pend = pending().mapNotNull { it.remoteId }.toSet()
+        insertAll(meals.filter { it.remoteId !in pend })
     }
 
     @Query("SELECT * FROM meal WHERE logicalDate = :date AND (pendingOp IS NULL OR pendingOp != 'delete') ORDER BY timestamp")
