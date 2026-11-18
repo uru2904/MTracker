@@ -63,7 +63,6 @@ val SCREEN_LIMIT_MIN: Long get() = com.uru2904.mtracker.data.AppSettings.screenL
 private val es = Locale("es", "AR")
 private val Over = Danger
 private val Near = Warn
-private val Ok = Ok
 
 /** Uso por día: celular y tablet, minutos por app. */
 data class UsageData(

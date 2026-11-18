@@ -61,7 +61,6 @@ private val CRem = Color(0xFFA5B4FC)
 private val CLight = Color(0xFF6366F1)
 private val CDeep = Color(0xFF3730A3)
 private val Good = Ok
-private val Warn = Warn
 private val Bad = Danger
 
 private fun hm(min: Long) = if (min < 60) "$min min" else "${min / 60} h ${min % 60} min"
