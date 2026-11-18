@@ -3,6 +3,7 @@ package com.uru2904.mtracker.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material.icons.outlined.Edit
