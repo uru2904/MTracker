@@ -41,11 +41,52 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+// ---- Paleta (única fuente de colores de la app) ----
 val Accent = Color(0xFF1E3A8A)
 val AccentLight = Color(0xFF93B4FF)
-val Card = Color(0xFF111111)
+val Card = Color(0xFF111111)       // tarjetas
+val Surface2 = Color(0xFF1A1A1A)   // botones secundarios, filas dentro de tarjetas, diálogos
+val Track = Color(0xFF262626)      // fondo de barras, divisores
+val Disabled = Color(0xFF3A3A3A)
 val Muted = Color(0xFF8A8A8A)
 val Soft = Color(0xFFBDBDBD)
+val Ok = Color(0xFF22C55E)
+val OkBg = Color(0xFF16261A)
+val Warn = Color(0xFFF2C14E)
+val WarnBg = Color(0xFF1A1205)
+val Danger = Color(0xFFF87171)
+val DangerBg = Color(0xFF3A1212)
+
+/** Escala de letras: siempre uno de estos tamaños. */
+object Type {
+    val Chart = 11.sp     // ejes y etiquetas de gráficos
+    val Small = 13.sp     // texto secundario
+    val Body = 15.sp      // texto normal
+    val Large = 17.sp     // botones, títulos de tarjeta
+    val Headline = 20.sp  // valores de tarjeta, subtítulos
+    val Title = 28.sp     // título de pantalla
+    val Number = 36.sp    // número principal de una pantalla
+    val Hero = 48.sp      // número gigante
+}
+
+/** Tema oscuro para todos los componentes de Material (menús, checkboxes, diálogos, efecto al tocar). */
+private val DarkScheme = androidx.compose.material3.darkColorScheme(
+    primary = AccentLight, onPrimary = Color.Black,
+    primaryContainer = Accent, onPrimaryContainer = Color.White,
+    secondary = AccentLight, onSecondary = Color.Black,
+    background = Color.Black, onBackground = Color.White,
+    surface = Card, onSurface = Color.White,
+    surfaceVariant = Surface2, onSurfaceVariant = Soft,
+    surfaceContainer = Surface2, surfaceContainerHigh = Surface2, surfaceContainerHighest = Track,
+    surfaceContainerLow = Card, surfaceContainerLowest = Color.Black,
+    outline = Muted, outlineVariant = Track,
+    error = Danger, onError = Color.Black,
+    inverseSurface = Color(0xFFEDEDED), inverseOnSurface = Color.Black, inversePrimary = Accent,
+)
+
+@Composable
+fun MTrackerTheme(content: @Composable () -> Unit) =
+    androidx.compose.material3.MaterialTheme(colorScheme = DarkScheme, content = content)
 
 enum class Tab(val label: String, val on: ImageVector, val off: ImageVector, val inBar: Boolean = true) {
     Hoy("Inicio", Icons.Filled.Home, Icons.Outlined.Home),
@@ -63,7 +104,7 @@ enum class Tab(val label: String, val on: ImageVector, val off: ImageVector, val
 @Composable
 fun TabBar(selected: Tab, onSelect: (Tab) -> Unit) {
     Column(Modifier.fillMaxWidth().background(Color.Black)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1F1F1F)))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Track))
         Row(
             modifier = Modifier.fillMaxWidth().height(64.dp),
             horizontalArrangement = Arrangement.SpaceAround,
@@ -77,7 +118,7 @@ fun TabBar(selected: Tab, onSelect: (Tab) -> Unit) {
                     modifier = Modifier.weight(1f).clickable { onSelect(t) }.padding(vertical = 8.dp),
                 ) {
                     Icon(if (sel) t.on else t.off, contentDescription = t.label, tint = color, modifier = Modifier.size(24.dp))
-                    Text(t.label, color = color, fontSize = 11.sp, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal)
+                    Text(t.label, color = color, fontSize = Type.Chart, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal)
                 }
             }
         }
@@ -93,9 +134,9 @@ fun InfoCard(title: String, value: String? = null, note: String? = null) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(title, color = if (value == null) Color.White else Muted, fontSize = 13.sp)
-        value?.let { Text(it, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) }
-        note?.let { Text(it, color = Muted, fontSize = 13.sp) }
+        Text(title, color = if (value == null) Color.White else Muted, fontSize = Type.Small)
+        value?.let { Text(it, color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.SemiBold) }
+        note?.let { Text(it, color = Muted, fontSize = Type.Small) }
     }
 }
 
@@ -109,12 +150,12 @@ fun num(v: Double): String =
 fun ConfirmDialog(title: String, text: String, confirmLabel: String = "Borrar", onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF161616),
+        containerColor = Surface2,
         titleContentColor = Color.White,
         textContentColor = Soft,
         title = { Text(title) },
         text = { Text(text) },
-        confirmButton = { TextButton(onClick = { onConfirm(); onDismiss() }) { Text(confirmLabel, color = Color(0xFFF87171)) } },
+        confirmButton = { TextButton(onClick = { onConfirm(); onDismiss() }) { Text(confirmLabel, color = Danger) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = Color.White) } },
     )
 }
@@ -176,9 +217,9 @@ fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
         enableDismissFromStartToEnd = false,
         backgroundContent = {
             Row(
-                Modifier.fillMaxSize().background(Color(0xFF3A1212)).padding(horizontal = 20.dp),
+                Modifier.fillMaxSize().background(DangerBg).padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically,
-            ) { Icon(androidx.compose.material.icons.Icons.Outlined.Delete, contentDescription = "Borrar", tint = Color(0xFFF87171)) }
+            ) { Icon(androidx.compose.material.icons.Icons.Outlined.Delete, contentDescription = "Borrar", tint = Danger) }
         },
     ) { content() }
 }

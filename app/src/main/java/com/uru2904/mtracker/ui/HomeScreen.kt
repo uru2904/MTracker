@@ -67,9 +67,9 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 private val es = Locale("es", "AR")
-private val Green = Color(0xFF22C55E)
-private val Yellow = Color(0xFFF2C14E)
-private val Red = Color(0xFFF87171)
+private val Green = Ok
+private val Yellow = Warn
+private val Red = Danger
 
 /** Lo que Inicio lee de Health Connect (se guarda en memoria para no parpadear). */
 data class HomeHealth(val steps: Long, val night: SleepNight?, val exercises: List<String>, val nights: List<SleepNight> = emptyList())
@@ -156,13 +156,13 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
         val daysLeft = endDate?.let { ChronoUnit.DAYS.between(LocalDate.now(), it) }
         Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("MTracker", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                Text("  v$version", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp).weight(1f))
+                Text("MTracker", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
+                Text("  v$version", color = Muted, fontSize = Type.Small, modifier = Modifier.padding(bottom = 5.dp).weight(1f))
                 androidx.compose.material3.IconButton(onClick = { onNavigate(Tab.Ajustes) }) {
                     androidx.compose.material3.Icon(Icons.Outlined.Settings, "Ajustes", tint = Soft)
                 }
             }
-            if (daysLeft != null && daysLeft >= 0) Text("Faltan $daysLeft días para ${goal?.name}", color = Muted, fontSize = 13.sp)
+            if (daysLeft != null && daysLeft >= 0) Text("Faltan $daysLeft días para ${goal?.name}", color = Muted, fontSize = Type.Small)
         }
 
         RefreshBox(refreshing = refreshing, onRefresh = { scope.launch { refreshing = true; refresh(); loadUsageCard(); refreshing = false } }) {
@@ -242,13 +242,13 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                 DashCard("Gym", { onNavigate(Tab.Gym) }) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Próxima: $next", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("Próxima: $next", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text("$last7/3 en 7 días", color = if (last7 >= 3) Green else if (last7 == 2) Yellow else Red, fontSize = 13.sp)
+                                Text("$last7/3 en 7 días", color = if (last7 >= 3) Green else if (last7 == 2) Yellow else Red, fontSize = Type.Small)
                                 daysSince?.let {
                                     Text(
                                         if (it == 0) "entrenaste hoy" else "hace $it ${if (it == 1) "día" else "días"}",
-                                        color = if (it <= 2) Green else if (it == 3) Yellow else Red, fontSize = 13.sp,
+                                        color = if (it <= 2) Green else if (it == 3) Yellow else Red, fontSize = Type.Small,
                                     )
                                 }
                             }
@@ -270,7 +270,7 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                     val target = goal?.targetWeightKg
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(lastW?.let { "${num(it.kg)} kg" } ?: "Sin pesadas", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text(lastW?.let { "${num(it.kg)} kg" } ?: "Sin pesadas", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
                             val first = weights.firstOrNull()
                             val notes = buildList {
                                 if (lastW != null && first != null && first.id != lastW.id) {
@@ -279,7 +279,7 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                                 }
                                 if (lastW != null && target != null && lastW.kg > target) add("faltan ${num(Math.round((lastW.kg - target) * 10) / 10.0)} kg")
                             }
-                            if (notes.isNotEmpty()) Text(notes.joinToString(" · "), color = Soft, fontSize = 13.sp)
+                            if (notes.isNotEmpty()) Text(notes.joinToString(" · "), color = Soft, fontSize = Type.Small)
                         }
                         if (weights.size >= 2) Sparkline(weights.map { it.kg }, Modifier.width(90.dp).height(36.dp))
                     }
@@ -292,14 +292,14 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             val avg = if (withData.isEmpty()) null else withData.sumOf { it.totalMin } / withData.size
-                            Text(avg?.let { "${it / 60} h ${it % 60} min" } ?: "Sin datos", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("promedio", color = Soft, fontSize = 13.sp)
+                            Text(avg?.let { "${it / 60} h ${it % 60} min" } ?: "Sin datos", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
+                            Text("promedio", color = Soft, fontSize = Type.Small)
                         }
                         val byDate = nights.associateBy { it.date }
                         Canvas(Modifier.width(120.dp).height(44.dp)) {
                             val maxH = 12f
                             fun y(h: Float) = size.height * (1 - h / maxH)
-                            drawRect(Color(0xFF1C2A1C), Offset(0f, y(9f)), Size(size.width, y(7f) - y(9f)))
+                            drawRect(OkBg, Offset(0f, y(9f)), Size(size.width, y(7f) - y(9f)))
                             val n = 7; val gap = 4.dp.toPx(); val w = (size.width - gap * (n - 1)) / n
                             (6 downTo 0).forEachIndexed { i, d ->
                                 val night = byDate[LocalDate.now().minusDays(d.toLong())] ?: return@forEachIndexed
@@ -318,10 +318,10 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                     val todayMin = usage?.total(LocalDate.now())
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                         Text(todayMin?.let { hmin(it) } ?: "–", color = todayMin?.let { usageColor(it) } ?: Muted,
-                            fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        Text("de ${SCREEN_LIMIT_MIN / 60} h", color = Muted, fontSize = 13.sp)
+                            fontSize = Type.Headline, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("de ${SCREEN_LIMIT_MIN / 60} h", color = Muted, fontSize = Type.Small)
                     }
-                    Box(Modifier.fillMaxWidth().height(8.dp).background(Color(0xFF262626), RoundedCornerShape(4.dp))) {
+                    Box(Modifier.fillMaxWidth().height(8.dp).background(Track, RoundedCornerShape(4.dp))) {
                         Box(
                             Modifier.fillMaxWidth(((todayMin ?: 0).toFloat() / SCREEN_LIMIT_MIN).coerceIn(0f, 1f)).height(8.dp)
                                 .background(usageColor(todayMin ?: 0), RoundedCornerShape(4.dp))
@@ -337,11 +337,11 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
 @Composable
 private fun Notice(text: String, action: String?, onAction: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(Color(0xFF1A1205), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().background(WarnBg, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, color = Yellow, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        action?.let { Text(it, color = AccentLight, fontSize = 14.sp, modifier = Modifier.clickable { onAction() }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp)) }
+        Text(text, color = Yellow, fontSize = Type.Small, modifier = Modifier.weight(1f))
+        action?.let { Text(it, color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onAction() }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp)) }
     }
 }
 
@@ -355,7 +355,7 @@ private fun DashCard(title: String, onClick: (() -> Unit)?, content: @Composable
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            Text(title, color = Muted, fontSize = Type.Small, modifier = Modifier.weight(1f))
             if (onClick != null) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Muted, modifier = Modifier.size(18.dp))
         }
         content()
@@ -371,15 +371,15 @@ private fun Ring(modifier: Modifier, fraction: Float, color: Color, value: Strin
                 val stroke = 9.dp.toPx()
                 val inset = stroke / 2
                 val arcSize = Size(size.width - stroke, size.height - stroke)
-                drawArc(Color(0xFF262626), -90f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
+                drawArc(Track, -90f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
                 drawArc(color, -90f, 360f * fraction.coerceIn(0f, 1f), false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(value, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                Text(sub, color = Muted, fontSize = 10.sp, textAlign = TextAlign.Center)
+                Text(value, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text(sub, color = Muted, fontSize = Type.Chart, textAlign = TextAlign.Center)
             }
         }
-        Text(label, color = Soft, fontSize = 13.sp)
+        Text(label, color = Soft, fontSize = Type.Small)
     }
 }
 

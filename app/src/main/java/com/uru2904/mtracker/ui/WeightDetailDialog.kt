@@ -79,10 +79,10 @@ fun WeightDetailDialog(db: AppDatabase, w: WeightEntry, onClose: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM, HH:mm", es).format(at.atZone(zone)), color = Muted, fontSize = 14.sp)
-                Text("Cerrar", color = AccentLight, fontSize = 15.sp, modifier = Modifier.clickable { onClose() }.padding(8.dp))
+                Text(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM, HH:mm", es).format(at.atZone(zone)), color = Muted, fontSize = Type.Body)
+                Text("Cerrar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onClose() }.padding(8.dp))
             }
-            Text("${num(w.kg)} kg", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold)
+            Text("${num(w.kg)} kg", color = Color.White, fontSize = Type.Hero, fontWeight = FontWeight.Bold)
 
             if (loading) {
                 CircularProgressIndicator(color = Soft, strokeWidth = 2.dp)
@@ -92,7 +92,7 @@ fun WeightDetailDialog(db: AppDatabase, w: WeightEntry, onClose: () -> Unit) {
             // Composición corporal
             Section("Composición corporal", comp?.let { whenText(it.at.atZone(zone).toLocalDate()) }) {
                 val c = comp
-                if (c == null) Text("Todavía no hay mediciones con el reloj.", color = Muted, fontSize = 14.sp)
+                if (c == null) Text("Todavía no hay mediciones con el reloj.", color = Muted, fontSize = Type.Body)
                 else {
                     Metric("Grasa corporal", c.bodyFatPct?.let { "${num(Math.round(it * 10) / 10.0)} %" })
                     c.leanKg?.let { Metric("Masa magra", "${num(Math.round(it * 10) / 10.0)} kg") }
@@ -101,7 +101,7 @@ fun WeightDetailDialog(db: AppDatabase, w: WeightEntry, onClose: () -> Unit) {
 
             // Medidas
             Section("Medidas", measuresDate?.let { whenText(LocalDate.parse(it)) }) {
-                if (measures.isEmpty()) Text("Todavía no hay medidas cargadas.", color = Muted, fontSize = 14.sp)
+                if (measures.isEmpty()) Text("Todavía no hay medidas cargadas.", color = Muted, fontSize = Type.Body)
                 else types.filter { t -> measures.any { it.typeId == t.id } }.forEach { t ->
                     Metric(t.name, measures.first { it.typeId == t.id }.cm.let { "${num(it)} cm" })
                 }
@@ -117,8 +117,8 @@ private fun Section(title: String, note: String?, content: @Composable () -> Uni
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            note?.let { Text(it, color = Color(0xFFF2C14E), fontSize = 12.sp) }
+            Text(title, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
+            note?.let { Text(it, color = Warn, fontSize = Type.Small) }
         }
         content()
     }
@@ -127,8 +127,8 @@ private fun Section(title: String, note: String?, content: @Composable () -> Uni
 @Composable
 private fun Metric(label: String, value: String?) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = Soft, fontSize = 15.sp)
-        Text(value ?: "–", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = Soft, fontSize = Type.Body)
+        Text(value ?: "–", color = Color.White, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
     }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1F1F1F)))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(Track))
 }

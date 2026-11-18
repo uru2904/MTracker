@@ -68,7 +68,6 @@ import java.util.Locale
 
 private val es = Locale("es", "AR")
 private val dmy = DateTimeFormatter.ofPattern("dd/MM/yyyy")
-private val Dark = darkColorScheme(primary = AccentLight, onPrimary = Color.Black, surface = Color(0xFF161616), surfaceContainerHigh = Color(0xFF161616))
 
 private val shiftNames = mapOf(Shift.TM to "Mañana (TM)", Shift.TT to "Tarde (TT)", Shift.TN to "Noche (TN)")
 private val rotations = listOf(listOf(Shift.TT, Shift.TM, Shift.TN), listOf(Shift.TT, Shift.TN, Shift.TM))
@@ -111,7 +110,7 @@ fun SettingsScreen(db: AppDatabase, onBack: () -> Unit) {
         // Encabezado fijo
         Row(Modifier.padding(start = 4.dp, end = 20.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = Color.White) }
-            Text("Ajustes", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("Ajustes", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -200,13 +199,13 @@ fun SettingsScreen(db: AppDatabase, onBack: () -> Unit) {
         }
     }
 
-    editor?.let { e -> MaterialTheme(colorScheme = Dark) { EditorDialog(e) { editor = null } } }
+    editor?.let { e -> EditorDialog(e) { editor = null } }
 }
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Column {
-        Text(title.uppercase(), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+        Text(title.uppercase(), color = Muted, fontSize = Type.Small, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
         Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(14.dp))) { content() }
     }
 }
@@ -218,13 +217,13 @@ private fun Item(label: String, value: String, sub: String? = null, onClick: (()
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, color = Color.White, fontSize = 15.sp)
-            if (sub != null) Text(sub, color = Muted, fontSize = 12.sp)
+            Text(label, color = Color.White, fontSize = Type.Body)
+            if (sub != null) Text(sub, color = Muted, fontSize = Type.Small)
         }
-        Text(value, color = Soft, fontSize = 15.sp)
-        Text(if (onClick != null) "  ›" else "   ", color = Muted, fontSize = 18.sp)
+        Text(value, color = Soft, fontSize = Type.Body)
+        Text(if (onClick != null) "  ›" else "   ", color = Muted, fontSize = Type.Large)
     }
-    HorizontalDivider(color = Color(0xFF1C1C1C), thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
+    HorizontalDivider(color = Track, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -257,7 +256,7 @@ private fun EditorDialog(e: Editor, close: () -> Unit) {
                     e.options.forEachIndexed { i, o ->
                         Row(Modifier.fillMaxWidth().clickable { sel = i }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = sel == i, onClick = { sel = i }, colors = RadioButtonDefaults.colors(selectedColor = AccentLight))
-                            Text(o, color = Color.White, fontSize = 15.sp)
+                            Text(o, color = Color.White, fontSize = Type.Body)
                         }
                     }
                 }
@@ -290,8 +289,8 @@ private fun EditorDialog(e: Editor, close: () -> Unit) {
                 Column {
                     listOf("Desde" to start, "Hasta" to end).forEachIndexed { i, (l, t) ->
                         Row(Modifier.fillMaxWidth().clickable { picking = i }.padding(vertical = 12.dp)) {
-                            Text(l, color = Soft, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                            Text(t.toString(), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            Text(l, color = Soft, fontSize = Type.Body, modifier = Modifier.weight(1f))
+                            Text(t.toString(), color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -314,7 +313,7 @@ private fun TimeDialog(title: String, initial: LocalTime, onSave: (LocalTime) ->
 private fun SimpleDialog(title: String, canSave: Boolean, onSave: () -> Unit, close: () -> Unit, content: @Composable () -> Unit) {
     AlertDialog(
         onDismissRequest = close,
-        containerColor = Color(0xFF161616), titleContentColor = Color.White, textContentColor = Soft,
+        containerColor = Surface2, titleContentColor = Color.White, textContentColor = Soft,
         title = { Text(title) },
         text = content,
         confirmButton = { TextButton(enabled = canSave, onClick = onSave) { Text("Guardar", color = if (canSave) AccentLight else Muted) } },

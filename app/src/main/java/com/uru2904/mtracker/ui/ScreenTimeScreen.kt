@@ -61,9 +61,9 @@ import java.util.Locale
 
 val SCREEN_LIMIT_MIN: Long get() = com.uru2904.mtracker.data.AppSettings.screenLimitMin
 private val es = Locale("es", "AR")
-private val Over = Color(0xFFF87171)
-private val Near = Color(0xFFF2C14E)
-private val Ok = Color(0xFF22C55E)
+private val Over = Danger
+private val Near = Warn
+private val Ok = Ok
 
 /** Uso por día: celular y tablet, minutos por app. */
 data class UsageData(
@@ -123,27 +123,27 @@ fun ScreenTimeScreen(db: AppDatabase, onBack: () -> Unit) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White,
                 modifier = Modifier.clickable { onBack() }.padding(12.dp))
-            Text("Pantalla", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Pantalla", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
         }
 
         // ---- Fijo: total del día seleccionado y gráfico ----
         val total = d?.total(selected) ?: 0
         Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (!hasPerm) Row(
-                Modifier.fillMaxWidth().background(Color(0xFF1A1205), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().background(WarnBg, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Falta el permiso de acceso al uso", color = Near, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                Text("Activar", color = AccentLight, fontSize = 14.sp, modifier = Modifier.clickable {
+                Text("Falta el permiso de acceso al uso", color = Near, fontSize = Type.Small, modifier = Modifier.weight(1f))
+                Text("Activar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable {
                     context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
                 }.padding(start = 12.dp))
             }
             if (needsGoogle) Row(
-                Modifier.fillMaxWidth().background(Color(0xFF1A1205), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().background(WarnBg, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Sin conexión con la planilla: falta el uso de la tablet", color = Near, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                Text("Conectar", color = AccentLight, fontSize = 14.sp, modifier = Modifier.clickable {
+                Text("Sin conexión con la planilla: falta el uso de la tablet", color = Near, fontSize = Type.Small, modifier = Modifier.weight(1f))
+                Text("Conectar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable {
                     scope.launch {
                         (runCatching { sync.authorize(context) }.getOrNull() as? AuthStep.NeedsConsent)?.let {
                             consent.launch(IntentSenderRequest.Builder(it.intent.intentSender).build())
@@ -154,11 +154,11 @@ fun ScreenTimeScreen(db: AppDatabase, onBack: () -> Unit) {
 
             Text(
                 if (selected == LocalDate.now()) "Hoy" else DateTimeFormatter.ofPattern("EEEE d/M", es).format(selected),
-                color = Muted, fontSize = 13.sp,
+                color = Muted, fontSize = Type.Small,
             )
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(hmin(total), color = usageColor(total), fontSize = 34.sp, fontWeight = FontWeight.Bold)
-                Text("  de ${SCREEN_LIMIT_MIN / 60} h", color = Muted, fontSize = 15.sp, modifier = Modifier.padding(bottom = 6.dp))
+                Text(hmin(total), color = usageColor(total), fontSize = Type.Number, fontWeight = FontWeight.Bold)
+                Text("  de ${SCREEN_LIMIT_MIN / 60} h", color = Muted, fontSize = Type.Body, modifier = Modifier.padding(bottom = 6.dp))
             }
 
             Column(
@@ -168,8 +168,8 @@ fun ScreenTimeScreen(db: AppDatabase, onBack: () -> Unit) {
                 val maxMin = maxOf(SCREEN_LIMIT_MIN * 4 / 3, days.maxOf { d?.total(it) ?: 0 })
                 Row(Modifier.fillMaxWidth().height(140.dp)) {
                     Column(Modifier.fillMaxHeight().width(30.dp).padding(end = 6.dp), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.End) {
-                        Text("${maxMin / 60}h", color = Muted, fontSize = 10.sp)
-                        Text("0", color = Muted, fontSize = 10.sp)
+                        Text("${maxMin / 60}h", color = Muted, fontSize = Type.Chart)
+                        Text("0", color = Muted, fontSize = Type.Chart)
                     }
                     Canvas(
                         Modifier.weight(1f).fillMaxHeight().pointerInput(Unit) {
@@ -198,14 +198,14 @@ fun ScreenTimeScreen(db: AppDatabase, onBack: () -> Unit) {
                 Row(Modifier.fillMaxWidth().padding(start = 30.dp)) {
                     days.forEachIndexed { i, day ->
                         Text(if (i % 2 == 1) "${day.dayOfMonth}" else "", color = if (day == selected) Color.White else Muted,
-                            fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                            fontSize = Type.Chart, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     TrackedApp.entries.forEach { app ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(9.dp).background(Color(app.color), RoundedCornerShape(2.dp)))
-                            Text(app.label, color = Muted, fontSize = 10.sp, modifier = Modifier.padding(start = 3.dp))
+                            Text(app.label, color = Muted, fontSize = Type.Chart, modifier = Modifier.padding(start = 3.dp))
                         }
                     }
                 }
@@ -220,25 +220,25 @@ fun ScreenTimeScreen(db: AppDatabase, onBack: () -> Unit) {
             ) {
                 Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
                     TrackedApp.entries.sortedByDescending { d?.app(selected, it) ?: 0 }.forEachIndexed { i, app ->
-                        if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+                        if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Track))
                         val p = d?.phone?.get(selected)?.get(app) ?: 0
                         val t = d?.tablet?.get(selected)?.get(app) ?: 0
                         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(12.dp).background(Color(app.color), RoundedCornerShape(3.dp)))
                             Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                                Text(app.label, color = Color.White, fontSize = 15.sp)
-                                if (t > 0) Text("celular ${hmin(p)} · tablet ${hmin(t)}", color = Muted, fontSize = 12.sp)
+                                Text(app.label, color = Color.White, fontSize = Type.Body)
+                                if (t > 0) Text("celular ${hmin(p)} · tablet ${hmin(t)}", color = Muted, fontSize = Type.Small)
                             }
-                            Text(hmin(p + t), color = if (p + t > 0) Color.White else Muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(hmin(p + t), color = if (p + t > 0) Color.White else Muted, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
                 if (d != null && !d.tabletLinked) Text(
                     "Para sumar la tablet: instalá MTracker en la tablet; se configura sola como tablet y sube su uso a la planilla.",
-                    color = Muted, fontSize = 12.sp,
+                    color = Muted, fontSize = Type.Small,
                 )
                 Text("Solo cuenta las apps (no el navegador). Android guarda el detalle unos 7 días; lo anterior sale de la planilla.",
-                    color = Muted, fontSize = 11.sp)
+                    color = Muted, fontSize = Type.Chart)
             }
         }
     }
@@ -285,29 +285,29 @@ fun TabletScreen(db: AppDatabase, onUseAsPhone: () -> Unit) {
         Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("MTracker · tablet", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text("MTracker · tablet", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
         Text("En la tablet solo se mide el uso de X, Instagram, YouTube, Kick y Twitch. Se sube a la planilla cada 2 horas y el celular lo suma.",
-            color = Muted, fontSize = 14.sp)
+            color = Muted, fontSize = Type.Body)
         if (!hasPerm) Button(
             onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) },
             colors = ButtonDefaults.buttonColors(containerColor = Accent), modifier = Modifier.fillMaxWidth(),
         ) { Text("Dar permiso de acceso al uso", color = Color.White) }
         val total = today.values.sum()
         Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Hoy en la tablet", color = Muted, fontSize = 13.sp)
-            Text(hmin(total), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text("Hoy en la tablet", color = Muted, fontSize = Type.Small)
+            Text(hmin(total), color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
             TrackedApp.entries.forEach { app ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(app.label, color = Soft, fontSize = 15.sp)
-                    Text(hmin(today[app] ?: 0), color = Color.White, fontSize = 15.sp)
+                    Text(app.label, color = Soft, fontSize = Type.Body)
+                    Text(hmin(today[app] ?: 0), color = Color.White, fontSize = Type.Body)
                 }
             }
         }
-        status?.let { Text(it, color = Muted, fontSize = 13.sp) }
+        status?.let { Text(it, color = Muted, fontSize = Type.Small) }
         Button(
             onClick = { scope.launch { connectAndUpload() } }, enabled = !busy,
             colors = ButtonDefaults.buttonColors(containerColor = Card), modifier = Modifier.fillMaxWidth(),
         ) { Text(if (busy) "Subiendo…" else "Subir ahora", color = Color.White) }
-        Text("Usar como celular", color = AccentLight, fontSize = 14.sp, modifier = Modifier.clickable { onUseAsPhone() }.padding(vertical = 8.dp))
+        Text("Usar como celular", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onUseAsPhone() }.padding(vertical = 8.dp))
     }
 }

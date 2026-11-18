@@ -136,13 +136,13 @@ fun MealsScreen(db: AppDatabase) {
     // El encabezado queda fijo; al deslizar para actualizar solo baja la lista.
     Column(Modifier.fillMaxSize().background(Color.Black)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("‹", color = Soft, fontSize = 28.sp, modifier = Modifier.clickable { date = date.minusDays(1) }.padding(12.dp))
+            Text("‹", color = Soft, fontSize = Type.Title, modifier = Modifier.clickable { date = date.minusDays(1) }.padding(12.dp))
             Text(
                 if (date == today) "Hoy" else DateTimeFormatter.ofPattern("EEE d MMM", es).format(date),
-                color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold,
             )
             Text(
-                "›", color = if (date < today) Soft else Color(0xFF333333), fontSize = 28.sp,
+                "›", color = if (date < today) Soft else Disabled, fontSize = Type.Title,
                 modifier = Modifier.clickable(enabled = date < today) { date = date.plusDays(1) }.padding(12.dp),
             )
         }
@@ -153,15 +153,15 @@ fun MealsScreen(db: AppDatabase) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
         if (sync.sheetId == null || syncMsg != null) Row(
-            Modifier.fillMaxWidth().background(Color(0xFF1A1205), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().background(WarnBg, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 if (sync.sheetId == null) "Planilla sin conectar" else syncMsg.orEmpty(),
-                color = Color(0xFFF2C14E), fontSize = 12.sp, modifier = Modifier.weight(1f),
+                color = Warn, fontSize = Type.Small, modifier = Modifier.weight(1f),
             )
             if (sync.sheetId == null) Text(
-                "Conectar", color = AccentLight, fontSize = 13.sp,
+                "Conectar", color = AccentLight, fontSize = Type.Small,
                 modifier = Modifier.clickable { scope.launch { doSync(interactive = true) } }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
             )
         }
@@ -170,13 +170,13 @@ fun MealsScreen(db: AppDatabase) {
             Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text("Total del día", color = Muted, fontSize = 13.sp)
-            Text("%,d / %,d kcal".format(es, totals.kcal.toInt(), kcalT), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            Text("Total del día", color = Muted, fontSize = Type.Small)
+            Text("%,d / %,d kcal".format(es, totals.kcal.toInt(), kcalT), color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
             Bar((totals.kcal / kcalT).toFloat())
-            Text("Proteína ${num(totals.protein)} / $protT g", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("Proteína ${num(totals.protein)} / $protT g", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
             Bar((totals.protein / protT).toFloat())
-            Text("Carbohidratos ${num(totals.carbs)} / $carbT g · Grasas ${num(totals.fat)} / $fatT g", color = Soft, fontSize = 13.sp)
-            if (drinks > 0) Text("Alcohol: ${num(drinks)} tragos", color = Soft, fontSize = 13.sp)
+            Text("Carbohidratos ${num(totals.carbs)} / $carbT g · Grasas ${num(totals.fat)} / $fatT g", color = Soft, fontSize = Type.Small)
+            if (drinks > 0) Text("Alcohol: ${num(drinks)} tragos", color = Soft, fontSize = Type.Small)
             // Día completo: solo estos días entran en el cálculo del gasto real (check-in semanal).
             val status by com.uru2904.mtracker.data.Live.dayStatus(db, key).collectAsState()
             val complete = status?.complete == true
@@ -194,7 +194,7 @@ fun MealsScreen(db: AppDatabase) {
                     colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = Accent, uncheckedColor = Muted, checkmarkColor = Color.White),
                 )
                 Text(if (complete) "Día completo" else "Marcar día completo (todo cargado)", color = if (complete) Color.White else Soft,
-                    fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
+                    fontSize = Type.Body, modifier = Modifier.padding(start = 8.dp))
             }
         }
         }
@@ -215,35 +215,35 @@ fun MealsScreen(db: AppDatabase) {
         val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
         Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
             meals.forEachIndexed { idx, m ->
-                if (idx > 0) Box(Modifier.fillMaxWidth().padding(start = 64.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+                if (idx > 0) Box(Modifier.fillMaxWidth().padding(start = 64.dp).height(1.dp).background(Track))
                 androidx.compose.runtime.key(m.id, m.remoteId) {
                     MealRow(m, timeFmt.format(Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()))) { toDelete = m }
                 }
             }
         }
-        if (meals.isEmpty()) Text("Sin comidas cargadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp))
+        if (meals.isEmpty()) Text("Sin comidas cargadas.", color = Muted, fontSize = Type.Body, modifier = Modifier.padding(start = 4.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
                 onClick = { adding = true },
                 colors = ButtonDefaults.buttonColors(containerColor = Accent),
                 modifier = Modifier.weight(1f).height(52.dp),
-            ) { Text("+ Agregar", color = Color.White, fontSize = 16.sp) }
+            ) { Text("+ Agregar", color = Color.White, fontSize = Type.Large) }
             // Abre el chat de Claude donde se cargan las comidas; al volver, la pantalla sincroniza sola.
             Button(
                 onClick = { openClaudeChat(context) },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A)),
+                colors = ButtonDefaults.buttonColors(containerColor = Surface2),
                 modifier = Modifier.weight(1f).height(52.dp),
             ) {
                 Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, null, tint = AccentLight, modifier = Modifier.size(18.dp))
-                Text("  Con Claude", color = Color.White, fontSize = 16.sp)
+                Text("  Con Claude", color = Color.White, fontSize = Type.Large)
             }
         }
         Button(
             onClick = { showFoods = true },
             colors = ButtonDefaults.buttonColors(containerColor = Card),
             modifier = Modifier.fillMaxWidth().height(48.dp),
-        ) { Text("Mis alimentos", color = Color.White, fontSize = 15.sp) }
+        ) { Text("Mis alimentos", color = Color.White, fontSize = Type.Body) }
     }
     }
     }
@@ -297,7 +297,7 @@ fun MealsScreen(db: AppDatabase) {
 
 @Composable
 private fun Bar(fraction: Float) {
-    Box(Modifier.fillMaxWidth().height(8.dp).background(Color(0xFF262626), RoundedCornerShape(4.dp))) {
+    Box(Modifier.fillMaxWidth().height(8.dp).background(Track, RoundedCornerShape(4.dp))) {
         Box(
             Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight()
                 .background(if (fraction > 1.05f) Color(0xFFB45309) else Accent, RoundedCornerShape(4.dp))
@@ -374,14 +374,14 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
             Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Agregar comida", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("Agregar comida", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
 
             MealTypes.chunked(3).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { t ->
                         val sel = t == type
                         Text(
-                            t, color = if (sel) Color.White else Soft, fontSize = 14.sp,
+                            t, color = if (sel) Color.White else Soft, fontSize = Type.Body,
                             modifier = Modifier.weight(1f)
                                 .background(if (sel) Accent else Card, RoundedCornerShape(10.dp))
                                 .clickable { type = t }
@@ -392,16 +392,16 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
             }
 
             // Lista de alimentos de la comida
-            Text(if (items.isEmpty()) "Sumá alimentos a esta comida" else "En esta comida", color = Muted, fontSize = 13.sp)
+            Text(if (items.isEmpty()) "Sumá alimentos a esta comida" else "En esta comida", color = Muted, fontSize = Type.Small)
             items.forEachIndexed { idx, it ->
                 Row(
                     Modifier.fillMaxWidth().background(Card, RoundedCornerShape(10.dp)).padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(it.name, color = Color.White, fontSize = 15.sp)
+                        Text(it.name, color = Color.White, fontSize = Type.Body)
                         val amount = if (it.grams) "${num(it.qty * 100)} g" else "${num(it.qty)} × ${it.portion}"
-                        Text("$amount · ${(it.kcal * it.qty).toInt()} kcal · P ${num(it.protein * it.qty)}", color = Muted, fontSize = 12.sp)
+                        Text("$amount · ${(it.kcal * it.qty).toInt()} kcal · P ${num(it.protein * it.qty)}", color = Muted, fontSize = Type.Small)
                     }
                     if (it.grams) {
                         // ARGENFOOD: gramos (pesados en crudo)
@@ -426,10 +426,10 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                             modifier = Modifier.padding(start = 8.dp).size(22.dp).clickable { items.removeAt(idx) },
                         )
                     } else {
-                        Text("−", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable {
+                        Text("−", color = Color.White, fontSize = Type.Headline, modifier = Modifier.clickable {
                             if (it.qty <= 0.5) items.removeAt(idx) else items[idx] = it.copy(qty = it.qty - 0.5)
                         }.padding(horizontal = 12.dp, vertical = 4.dp))
-                        Text("+", color = Color.White, fontSize = 24.sp, modifier = Modifier.clickable {
+                        Text("+", color = Color.White, fontSize = Type.Headline, modifier = Modifier.clickable {
                             items[idx] = it.copy(qty = it.qty + 0.5)
                         }.padding(horizontal = 12.dp, vertical = 4.dp))
                     }
@@ -441,7 +441,7 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
             val shownFoods = if (query.isBlank()) allFoods.filter { it.source != "argenfood" || it.pinned }.take(40)
                 else results.sortedWith(compareByDescending<FoodItem> { it.pinned }.thenByDescending { it.source != "argenfood" }).take(20)
             if (query.isBlank() && allFoods.none { it.pinned }) {
-                Text("Tip: mantené apretado un alimento para fijarlo arriba.", color = Muted, fontSize = 12.sp)
+                Text("Tip: mantené apretado un alimento para fijarlo arriba.", color = Muted, fontSize = Type.Small)
             }
             if (shownFoods.isNotEmpty()) FoodList(
                 db = db, foods = shownFoods,
@@ -451,13 +451,13 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                 onDelete = null,
             )
             if (query.trim().length >= 3 && results.isEmpty()) {
-                Text("No está en tus alimentos. Cargalo a mano abajo.", color = Muted, fontSize = 13.sp)
+                Text("No está en tus alimentos. Cargalo a mano abajo.", color = Muted, fontSize = Type.Small)
             }
 
             // Carga manual
             if (!manual) {
                 Text(
-                    "+ Cargar a mano", color = AccentLight, fontSize = 15.sp,
+                    "+ Cargar a mano", color = AccentLight, fontSize = Type.Body,
                     modifier = Modifier.clickable { manual = true; if (mName.isBlank()) mName = query }.padding(vertical = 6.dp),
                 )
             } else {
@@ -465,7 +465,7 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                     Modifier.fillMaxWidth().background(Card, RoundedCornerShape(12.dp)).padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text("Alimento nuevo (queda guardado para la próxima)", color = Soft, fontSize = 13.sp)
+                    Text("Alimento nuevo (queda guardado para la próxima)", color = Soft, fontSize = Type.Small)
                     field(mName, "Nombre", { mName = it })
                     field(mPortion, "Porción (ej: 1 plato, 1 vaso)", { mPortion = it })
                     PortionChips { mPortion = it }
@@ -490,7 +490,7 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                             mName = ""; mPortion = ""; mKcal = ""; mProt = ""; mCarbs = ""; mFat = ""; manual = false
                         },
                         enabled = ok,
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Track),
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(if (ok) "Sumar a la comida" else "Falta nombre y kcal", color = if (ok) Color.White else Muted) }
                 }
@@ -500,8 +500,8 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
 
             // Totales
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(12.dp)).padding(12.dp)) {
-                Text("Total: ${tKcal.toInt()} kcal · P ${num(tProt)} g", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text("Carbos ${num(tCarbs)} g · Grasas ${num(tFat)} g", color = Muted, fontSize = 13.sp)
+                Text("Total: ${tKcal.toInt()} kcal · P ${num(tProt)} g", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
+                Text("Carbos ${num(tCarbs)} g · Grasas ${num(tFat)} g", color = Muted, fontSize = Type.Small)
             }
 
             val valid = items.isNotEmpty()
@@ -530,7 +530,7 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                         )
                     },
                     enabled = valid,
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Track),
                     modifier = Modifier.weight(1f).height(52.dp),
                 ) { Text(if (valid) "Guardar" else "Sumá un alimento", color = if (valid) Color.White else Muted) }
             }
@@ -558,9 +558,9 @@ private fun PortionChips(onPick: (String) -> Unit) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             row.forEach { p ->
                 Text(
-                    p, color = Soft, fontSize = 13.sp,
+                    p, color = Soft, fontSize = Type.Small,
                     modifier = Modifier.weight(1f)
-                        .background(Color(0xFF1A1A1A), RoundedCornerShape(8.dp))
+                        .background(Surface2, RoundedCornerShape(8.dp))
                         .clickable { onPick(p) }
                         .padding(vertical = 8.dp, horizontal = 8.dp),
                 )
@@ -587,8 +587,8 @@ private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Mis alimentos (${shown.size})", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Cerrar", color = AccentLight, fontSize = 15.sp, modifier = Modifier.clickable { onDismiss() }.padding(8.dp))
+                Text("Mis alimentos (${shown.size})", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
+                Text("Cerrar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onDismiss() }.padding(8.dp))
             }
             field(filter, "Filtrar", { filter = it })
             Button(
@@ -603,7 +603,7 @@ private fun FoodsDialog(db: AppDatabase, onDismiss: () -> Unit) {
                 onEdit = { editing = it },
                 onDelete = { deleting = it },
             )
-            if (shown.isEmpty()) Text("No hay alimentos que coincidan.", color = Muted, fontSize = 14.sp)
+            if (shown.isEmpty()) Text("No hay alimentos que coincidan.", color = Muted, fontSize = Type.Body)
         }
     }
 
@@ -636,11 +636,11 @@ private fun FoodEditor(db: AppDatabase, initial: FoodItem?, onClose: () -> Unit)
             Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(if (initial == null) "Nuevo alimento" else "Editar alimento", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(if (initial == null) "Nuevo alimento" else "Editar alimento", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
             field(name, "Nombre", { name = it })
             field(portion, "Porción (ej: 1 vaso, 1 plato)", { portion = it })
             PortionChips { portion = it }
-            Text("Valores por porción", color = Muted, fontSize = 13.sp)
+            Text("Valores por porción", color = Muted, fontSize = Type.Small)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 field(kcal, "kcal", { kcal = it }, true, Modifier.weight(1f))
                 field(prot, "Proteína g", { prot = it }, true, Modifier.weight(1f))
@@ -664,7 +664,7 @@ private fun FoodEditor(db: AppDatabase, initial: FoodItem?, onClose: () -> Unit)
                     }
                 },
                 enabled = ok,
-                colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Track),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
             ) { Text(if (ok) "Guardar" else "Falta nombre y kcal", color = if (ok) Color.White else Muted) }
             Button(
@@ -678,8 +678,8 @@ private fun FoodEditor(db: AppDatabase, initial: FoodItem?, onClose: () -> Unit)
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.clickable { confirmDelete = true }.padding(vertical = 10.dp),
                 ) {
-                    Icon(Icons.Outlined.Delete, contentDescription = null, tint = Color(0xFFF87171), modifier = Modifier.size(20.dp))
-                    Text("Borrar alimento", color = Color(0xFFF87171), fontSize = 15.sp)
+                    Icon(Icons.Outlined.Delete, contentDescription = null, tint = Danger, modifier = Modifier.size(20.dp))
+                    Text("Borrar alimento", color = Danger, fontSize = Type.Body)
                 }
                 if (confirmDelete) ConfirmDialog(
                     title = "¿Borrar este alimento?",
@@ -687,15 +687,15 @@ private fun FoodEditor(db: AppDatabase, initial: FoodItem?, onClose: () -> Unit)
                     onConfirm = { scope.launch { db.foods().delete(initial); onClose() } },
                     onDismiss = { confirmDelete = false },
                 )
-                Text("Borrar un alimento no cambia las comidas que ya cargaste con él.", color = Muted, fontSize = 12.sp)
+                Text("Borrar un alimento no cambia las comidas que ya cargaste con él.", color = Muted, fontSize = Type.Small)
             }
         }
     }
 }
 
 
-private val ProtColor = Color(0xFF93B4FF)
-private val CarbColor = Color(0xFFF2C14E)
+private val ProtColor = AccentLight
+private val CarbColor = Warn
 private val FatColor = Color(0xFFE879A6)
 
 /** Fila de la línea de tiempo. Deslizar hacia la izquierda pide confirmación para borrar. */
@@ -714,9 +714,9 @@ private fun MealRow(m: MealEntry, time: String, onDelete: () -> Unit) {
         enableDismissFromStartToEnd = false,
         backgroundContent = {
             Row(
-                Modifier.fillMaxSize().background(Color(0xFF3A1212)).padding(horizontal = 20.dp),
+                Modifier.fillMaxSize().background(DangerBg).padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically,
-            ) { Icon(Icons.Outlined.Delete, contentDescription = "Borrar", tint = Color(0xFFF87171)) }
+            ) { Icon(Icons.Outlined.Delete, contentDescription = "Borrar", tint = Danger) }
         },
     ) {
         Row(
@@ -724,20 +724,20 @@ private fun MealRow(m: MealEntry, time: String, onDelete: () -> Unit) {
             verticalAlignment = Alignment.Top,
         ) {
             Column(Modifier.width(50.dp)) {
-                Text(time, color = Soft, fontSize = 13.sp)
+                Text(time, color = Soft, fontSize = Type.Small)
                 if (m.pendingOp == "add") Box(Modifier.padding(top = 6.dp).size(6.dp).background(Color(0xFFB45309), RoundedCornerShape(3.dp)))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(m.mealType, color = Muted, fontSize = 11.sp)
-                Text(m.description, color = Color.White, fontSize = 15.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(m.mealType, color = Muted, fontSize = Type.Chart)
+                Text(m.description, color = Color.White, fontSize = Type.Body, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 MacroBar(m.protein, m.carbs, m.fat)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("P ${num(m.protein)}", color = ProtColor, fontSize = 11.sp)
-                    Text("C ${num(m.carbs)}", color = CarbColor, fontSize = 11.sp)
-                    Text("G ${num(m.fat)}", color = FatColor, fontSize = 11.sp)
+                    Text("P ${num(m.protein)}", color = ProtColor, fontSize = Type.Chart)
+                    Text("C ${num(m.carbs)}", color = CarbColor, fontSize = Type.Chart)
+                    Text("G ${num(m.fat)}", color = FatColor, fontSize = Type.Chart)
                 }
             }
-            Text("${m.kcal.toInt()}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 10.dp))
+            Text("${m.kcal.toInt()}", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 10.dp))
         }
     }
 }
@@ -772,7 +772,7 @@ private fun FoodList(
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(12.dp))) {
         foods.forEachIndexed { idx, f ->
-            if (idx > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+            if (idx > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Track))
             var menu by remember(f.id) { mutableStateOf(false) }
             Box {
                 Row(
@@ -786,11 +786,11 @@ private fun FoodList(
                         tint = AccentLight, modifier = Modifier.padding(end = 8.dp).size(16.dp),
                     )
                     Column(Modifier.weight(1f)) {
-                        Text(f.name, color = Color.White, fontSize = 15.sp)
+                        Text(f.name, color = Color.White, fontSize = Type.Body)
                         Text(
                             (if (f.source == "argenfood") "ARGENFOOD · cada 100 g" else f.portion) +
                                 " · ${f.kcal.toInt()} kcal · P ${num(f.protein)}",
-                            color = Muted, fontSize = 12.sp,
+                            color = Muted, fontSize = Type.Small,
                         )
                     }
                     if (showAdd) Icon(
@@ -800,7 +800,7 @@ private fun FoodList(
                 }
                 androidx.compose.material3.DropdownMenu(
                     expanded = menu, onDismissRequest = { menu = false },
-                    containerColor = Color(0xFF1A1A1A),
+                    containerColor = Surface2,
                 ) {
                     androidx.compose.material3.DropdownMenuItem(
                         text = { Text(if (f.pinned) "Desfijar" else "Fijar", color = Color.White) },
@@ -813,8 +813,8 @@ private fun FoodList(
                         onClick = { menu = false; onEdit(f) },
                     )
                     if (onDelete != null) androidx.compose.material3.DropdownMenuItem(
-                        text = { Text("Borrar", color = Color(0xFFF87171)) },
-                        leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = Color(0xFFF87171)) },
+                        text = { Text("Borrar", color = Danger) },
+                        leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = Danger) },
                         onClick = { menu = false; onDelete(f) },
                     )
                 }

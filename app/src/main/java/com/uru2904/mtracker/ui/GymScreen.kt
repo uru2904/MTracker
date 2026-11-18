@@ -52,9 +52,9 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
-private val Green = Color(0xFF22C55E)
-private val Yellow = Color(0xFFF2C14E)
-private val Red = Color(0xFFF87171)
+private val Green = Ok
+private val Yellow = Warn
+private val Red = Danger
 private val es = Locale("es", "AR")
 private const val WEEKLY_TARGET = 3
 
@@ -74,8 +74,8 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Gym", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Text("Importar CSV", color = AccentLight, fontSize = 14.sp, modifier = Modifier.clickable { onImport() }.padding(8.dp))
+            Text("Gym", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
+            Text("Importar CSV", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onImport() }.padding(8.dp))
         }
 
         // ---- Fijo: semáforos ----
@@ -123,18 +123,18 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Volumen semanal", color = Muted, fontSize = 13.sp)
+                Text("Volumen semanal", color = Muted, fontSize = Type.Small)
                 Text(
                     (if (selected == weeks.size - 1) "Actual" else "Sem. del " + DateTimeFormatter.ofPattern("d/M").format(weeks[selected])) +
                         ": %,d kg".format(es, volumes[selected].toLong()),
-                    color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    color = Color.White, fontSize = Type.Small, fontWeight = FontWeight.SemiBold,
                 )
             }
             val max = niceMax(volumes.maxOrNull() ?: 0.0)
             Row(Modifier.fillMaxWidth().height(130.dp)) {
                 // Eje vertical
                 Column(Modifier.fillMaxHeight().padding(end = 6.dp), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.End) {
-                    listOf(max, max / 2, 0.0).forEach { Text(kLabel(it), color = Muted, fontSize = 10.sp) }
+                    listOf(max, max / 2, 0.0).forEach { Text(kLabel(it), color = Muted, fontSize = Type.Chart) }
                 }
                 Canvas(
                     Modifier.weight(1f).fillMaxHeight().pointerInput(volumes.size) {
@@ -149,7 +149,7 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
                     val w = (size.width - gap * (n - 1)) / n
                     listOf(0f, 0.5f, 1f).forEach { f ->
                         val y = size.height * f
-                        drawLine(Color(0xFF242424), Offset(0f, y), Offset(size.width, y), 1f)
+                        drawLine(Track, Offset(0f, y), Offset(size.width, y), 1f)
                     }
                     countPaint.textSize = 11.sp.toPx()
                     volumes.forEachIndexed { i, v ->
@@ -174,7 +174,7 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
                 weeks.forEachIndexed { i, m ->
                     Text(
                         if (i == weeks.size - 1) "Actual" else DateTimeFormatter.ofPattern("d/M").format(m),
-                        color = if (i == selected) Color.White else Muted, fontSize = 10.sp,
+                        color = if (i == selected) Color.White else Muted, fontSize = Type.Chart,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         modifier = Modifier.weight(1f),
                     )
@@ -183,28 +183,28 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
         }
 
         // ---- Se desplaza: historial ----
-        Text("Historial", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+        Text("Historial", color = Muted, fontSize = Type.Small, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         Column(
             Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 16.dp),
         ) {
-            if (sessions.isEmpty()) Text("Todavía no hay sesiones. Importá el CSV de Hevy.", color = Muted, fontSize = 14.sp)
+            if (sessions.isEmpty()) Text("Todavía no hay sesiones. Importá el CSV de Hevy.", color = Muted, fontSize = Type.Body)
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
                 sessions.take(100).forEachIndexed { i, w ->
-                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Track))
                     val st = statsById[w.id]
                     Row(
                         Modifier.fillMaxWidth().clickable { detail = w }.padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(w.routine, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Text(w.routine, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
                             Text(
                                 DateTimeFormatter.ofPattern("EEE d/M", es).format(dateOf(w)) +
                                     " · ${w.durationMin} min" + (st?.let { " · ${it.exercises} ejercicios" } ?: ""),
-                                color = Muted, fontSize = 12.sp,
+                                color = Muted, fontSize = Type.Small,
                             )
                         }
-                        Text("%,d kg".format(es, (st?.volume ?: 0.0).toLong()), color = Soft, fontSize = 14.sp)
+                        Text("%,d kg".format(es, (st?.volume ?: 0.0).toLong()), color = Soft, fontSize = Type.Body)
                     }
                 }
             }
@@ -231,8 +231,8 @@ private fun Indicator(modifier: Modifier, label: String, value: String, color: C
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
         // Estilo Whoop: el color del estado va en el número, sin punto.
-        Text(label, color = Muted, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Text(value, color = color, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(label, color = Muted, fontSize = Type.Small, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(value, color = color, fontSize = Type.Headline, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
@@ -249,30 +249,30 @@ private fun SessionDetail(db: AppDatabase, w: WorkoutSession, onClose: () -> Uni
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text(w.routine, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text(w.routine, color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
                     Text(
                         DateTimeFormatter.ofPattern("EEEE d 'de' MMMM, HH:mm", es).format(Instant.ofEpochMilli(w.start).atZone(zone)) +
                             " · ${w.durationMin} min",
-                        color = Muted, fontSize = 13.sp,
+                        color = Muted, fontSize = Type.Small,
                     )
                 }
-                Text("Cerrar", color = AccentLight, fontSize = 15.sp, modifier = Modifier.clickable { onClose() }.padding(8.dp))
+                Text("Cerrar", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onClose() }.padding(8.dp))
             }
             val volume = sets.sumOf { (it.weightKg ?: 0.0) * (it.reps ?: 0) }
-            Text("Volumen total: %,d kg · ${sets.size} series".format(es, volume.toLong()), color = Soft, fontSize = 14.sp)
+            Text("Volumen total: %,d kg · ${sets.size} series".format(es, volume.toLong()), color = Soft, fontSize = Type.Body)
             // Orden de aparición en la sesión (el CSV no trae el orden de ejercicios; se usa el de carga).
             sets.sortedBy { it.id }.groupBy { it.exercise }.forEach { (exercise, ss) ->
                 Column(
                     Modifier.fillMaxWidth().background(Card, RoundedCornerShape(14.dp)).padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text(exercise, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(exercise, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
                     ss.sortedBy { it.setIndex }.forEachIndexed { i, s ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Serie ${i + 1}", color = Muted, fontSize = 14.sp)
+                            Text("Serie ${i + 1}", color = Muted, fontSize = Type.Body)
                             Text(
                                 (s.weightKg?.let { "${num(it)} kg × " } ?: "Peso corporal × ") + (s.reps ?: 0),
-                                color = Color.White, fontSize = 14.sp,
+                                color = Color.White, fontSize = Type.Body,
                             )
                         }
                     }

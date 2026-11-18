@@ -60,9 +60,9 @@ private val CAwake = Color(0xFFF472B6)
 private val CRem = Color(0xFFA5B4FC)
 private val CLight = Color(0xFF6366F1)
 private val CDeep = Color(0xFF3730A3)
-private val Good = Color(0xFF22C55E)
-private val Warn = Color(0xFFF2C14E)
-private val Bad = Color(0xFFF87171)
+private val Good = Ok
+private val Warn = Warn
+private val Bad = Danger
 
 private fun hm(min: Long) = if (min < 60) "$min min" else "${min / 60} h ${min % 60} min"
 
@@ -102,7 +102,7 @@ fun SleepScreen() {
 
     Column(Modifier.fillMaxSize().background(Color.Black)) {
         // Encabezado fijo: título y noche seleccionada
-        Text("Sueño", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+        Text("Sueño", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 4.dp))
         if (night != null) {
             val idx = list.indexOf(night)
@@ -110,13 +110,13 @@ fun SleepScreen() {
                 Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("‹", color = if (idx < list.lastIndex) Soft else Color(0xFF333333), fontSize = 28.sp,
+                Text("‹", color = if (idx < list.lastIndex) Soft else Disabled, fontSize = Type.Title,
                     modifier = Modifier.clickable(enabled = idx < list.lastIndex) { selected = list[idx + 1].date }.padding(12.dp))
                 Text(
                     if (night.date == LocalDate.now()) "Hoy" else DateTimeFormatter.ofPattern("EEE d 'de' MMM", es).format(night.date),
-                    color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                    color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold,
                 )
-                Text("›", color = if (idx > 0) Soft else Color(0xFF333333), fontSize = 28.sp,
+                Text("›", color = if (idx > 0) Soft else Disabled, fontSize = Type.Title,
                     modifier = Modifier.clickable(enabled = idx > 0) { selected = list[idx - 1].date }.padding(12.dp))
             }
         }
@@ -144,29 +144,29 @@ fun SleepScreen() {
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Row(verticalAlignment = Alignment.Bottom) {
-                                Text("${sc.score}", color = Color.White, fontSize = 52.sp, fontWeight = FontWeight.Bold)
-                                Text(sc.label, color = labelColor(sc.label), fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                                Text("${sc.score}", color = Color.White, fontSize = Type.Hero, fontWeight = FontWeight.Bold)
+                                Text(sc.label, color = labelColor(sc.label), fontSize = Type.Headline, fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(start = 10.dp, bottom = 10.dp))
                             }
-                            Text("Puntaje MTracker (propio, no es el de Samsung)", color = Muted, fontSize = 11.sp)
-                            Text("${hm(m.total)} · horas de sueño", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                            if (m.hasStages) Text("${hm(m.asleep)} · tiempo de sueño real", color = Soft, fontSize = 14.sp)
+                            Text("Puntaje MTracker (propio, no es el de Samsung)", color = Muted, fontSize = Type.Chart)
+                            Text("${hm(m.total)} · horas de sueño", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
+                            if (m.hasStages) Text("${hm(m.asleep)} · tiempo de sueño real", color = Soft, fontSize = Type.Body)
                             night.blocks.forEach { b ->
                                 Text(
                                     "${t(b.start)} – ${t(b.end)}" + if (b === night.main) "" else " · siesta",
-                                    color = Muted, fontSize = 13.sp,
+                                    color = Muted, fontSize = Type.Small,
                                 )
                             }
                             val win = calendar.expectedSleep(night.date)
                             Text(
                                 "Ventana esperada (turno ${calendar.shiftForWeekOf(night.date).name}): ${win.start}–${win.end}",
-                                color = Muted, fontSize = 12.sp,
+                                color = Muted, fontSize = Type.Small,
                             )
                         }
 
                         // ---- Factores ----
                         if (m.hasStages) {
-                            Text("Factores del puntaje", color = Muted, fontSize = 13.sp)
+                            Text("Factores del puntaje", color = Muted, fontSize = Type.Small)
                             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Factor(Modifier.weight(1f), "Tiempo de sueño", hm(m.asleep), sc.duration)
                                 Factor(Modifier.weight(1f), "Sueño profundo", hm(m.deep), sc.deep)
@@ -181,21 +181,21 @@ fun SleepScreen() {
                                 Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                Text("Fases del sueño principal", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Fases del sueño principal", color = Color.White, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
                                 Hypnogram(night.main)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(t(night.main.start), color = Muted, fontSize = 10.sp)
-                                    Text(t(night.main.end), color = Muted, fontSize = 10.sp)
+                                    Text(t(night.main.start), color = Muted, fontSize = Type.Chart)
+                                    Text(t(night.main.end), color = Muted, fontSize = Type.Chart)
                                 }
                                 val tot = m.total.coerceAtLeast(1)
                                 listOf(Triple("Despierto", m.awake, CAwake), Triple("REM", m.rem, CRem),
                                     Triple("Ligero", m.light, CLight), Triple("Profundo", m.deep, CDeep)).forEach { (name, v, c) ->
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("$name ${v * 100 / tot} %", color = c, fontSize = 13.sp)
-                                            Text(hm(v), color = Soft, fontSize = 13.sp)
+                                            Text("$name ${v * 100 / tot} %", color = c, fontSize = Type.Small)
+                                            Text(hm(v), color = Soft, fontSize = Type.Small)
                                         }
-                                        Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFF262626), RoundedCornerShape(5.dp))) {
+                                        Box(Modifier.fillMaxWidth().height(10.dp).background(Track, RoundedCornerShape(5.dp))) {
                                             Box(Modifier.fillMaxWidth((v.toFloat() / tot).coerceIn(0f, 1f)).fillMaxHeight().background(c, RoundedCornerShape(5.dp)))
                                         }
                                     }
@@ -210,7 +210,7 @@ fun SleepScreen() {
                                 Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Text("Durante el sueño", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Durante el sueño", color = Color.White, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
                                 v.hrAvg?.let { Vital("Ritmo cardíaco", "$it ppm" + (v.hrMin?.let { mn -> " (mín. $mn)" } ?: "")) }
                                 v.spo2Avg?.let { Vital("Oxígeno en sangre", "${Math.round(it)} %" + (v.spo2Min?.let { mn -> " (mín. ${Math.round(mn)} %)" } ?: "")) }
                                 v.rrAvg?.let { Vital("Frecuencia respiratoria", "${num(Math.round(it * 10) / 10.0)} resp/min") }
@@ -226,10 +226,10 @@ fun SleepScreen() {
                             val byDate = list.associateBy { it.date }
                             val withData = days.mapNotNull { byDate[it] }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Últimos 14 días", color = Muted, fontSize = 13.sp)
+                                Text("Últimos 14 días", color = Muted, fontSize = Type.Small)
                                 if (withData.isNotEmpty()) Text(
                                     "Promedio: " + hm(withData.sumOf { it.totalMin } / withData.size),
-                                    color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                    color = Color.White, fontSize = Type.Small, fontWeight = FontWeight.SemiBold,
                                 )
                             }
                             SleepBars(days, byDate, selected) { d -> if (byDate[d] != null) selected = d }
@@ -237,21 +237,21 @@ fun SleepScreen() {
                                 days.forEachIndexed { i, d ->
                                     Text(
                                         if (i % 2 == 1 || i == days.lastIndex) "${d.dayOfMonth}" else "",
-                                        color = if (d == selected) Color.White else Muted, fontSize = 10.sp,
+                                        color = if (d == selected) Color.White else Muted, fontSize = Type.Chart,
                                         textAlign = TextAlign.Center, modifier = Modifier.weight(1f),
                                     )
                                 }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Legend(AccentLight, "Principal"); Legend(Color(0xFF4B5E9E), "Siesta"); Legend(Color(0xFF1C2A1C), "Objetivo 7–9 h")
+                                Legend(AccentLight, "Principal"); Legend(Color(0xFF4B5E9E), "Siesta"); Legend(OkBg, "Objetivo 7–9 h")
                             }
                         }
 
                         // ---- Historial ----
-                        Text("Historial", color = Muted, fontSize = 13.sp)
+                        Text("Historial", color = Muted, fontSize = Type.Small)
                         Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
                             list.forEachIndexed { i, n ->
-                                if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+                                if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Track))
                                 val s = SleepScorer.score(n.minutes)
                                 Row(
                                     Modifier.fillMaxWidth().clickable { selected = n.date }.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -259,11 +259,11 @@ fun SleepScreen() {
                                 ) {
                                     Column(Modifier.weight(1f)) {
                                         Text(DateTimeFormatter.ofPattern("EEE d/M", es).format(n.date),
-                                            color = if (n.date == selected) AccentLight else Color.White, fontSize = 15.sp)
+                                            color = if (n.date == selected) AccentLight else Color.White, fontSize = Type.Body)
                                         Text(hm(n.totalMin) + if (n.napMin > 0) " · siesta ${num(Math.round(n.napMin / 6.0) / 10.0)} h" else "",
-                                            color = Muted, fontSize = 12.sp)
+                                            color = Muted, fontSize = Type.Small)
                                     }
-                                    Text("${s.score}", color = labelColor(s.label), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    Text("${s.score}", color = labelColor(s.label), fontSize = Type.Large, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -280,17 +280,17 @@ private fun Factor(modifier: Modifier, title: String, value: String, label: Stri
         modifier.fillMaxHeight().border(1.dp, Color(0xFF2A2A2A), RoundedCornerShape(14.dp)).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(title, color = Muted, fontSize = 12.sp)
-        Text(value, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        label?.let { Text(it, color = labelColor(it), fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+        Text(title, color = Muted, fontSize = Type.Small)
+        Text(value, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.Bold)
+        label?.let { Text(it, color = labelColor(it), fontSize = Type.Small, fontWeight = FontWeight.SemiBold) }
     }
 }
 
 @Composable
 private fun Vital(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = Soft, fontSize = 14.sp)
-        Text(value, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = Soft, fontSize = Type.Body)
+        Text(value, color = Color.White, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -298,7 +298,7 @@ private fun Vital(label: String, value: String) {
 private fun Legend(c: Color, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).background(c, RoundedCornerShape(2.dp)))
-        Text(text, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+        Text(text, color = Muted, fontSize = Type.Chart, modifier = Modifier.padding(start = 4.dp))
     }
 }
 
@@ -329,9 +329,9 @@ private fun SleepBars(days: List<LocalDate>, byDate: Map<LocalDate, SleepNight>,
     val maxH = 12f
     Row(Modifier.fillMaxWidth().height(140.dp)) {
         Column(Modifier.fillMaxHeight().width(28.dp).padding(end = 6.dp), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.End) {
-            Text("12h", color = Muted, fontSize = 10.sp)
-            Text("6h", color = Muted, fontSize = 10.sp)
-            Text("0", color = Muted, fontSize = 10.sp)
+            Text("12h", color = Muted, fontSize = Type.Chart)
+            Text("6h", color = Muted, fontSize = Type.Chart)
+            Text("0", color = Muted, fontSize = Type.Chart)
         }
         Canvas(
             Modifier.weight(1f).fillMaxHeight().pointerInput(days) {
@@ -340,9 +340,9 @@ private fun SleepBars(days: List<LocalDate>, byDate: Map<LocalDate, SleepNight>,
         ) {
             fun y(h: Float) = size.height * (1 - h / maxH)
             // Rango objetivo
-            drawRect(Color(0xFF1C2A1C), Offset(0f, y(9f)), Size(size.width, y(7f) - y(9f)))
-            drawLine(Color(0xFF2F4A2F), Offset(0f, y(9f)), Offset(size.width, y(9f)), 1f)
-            drawLine(Color(0xFF2F4A2F), Offset(0f, y(7f)), Offset(size.width, y(7f)), 1f)
+            drawRect(OkBg, Offset(0f, y(9f)), Size(size.width, y(7f) - y(9f)))
+            drawLine(OkBg, Offset(0f, y(9f)), Offset(size.width, y(9f)), 1f)
+            drawLine(OkBg, Offset(0f, y(7f)), Offset(size.width, y(7f)), 1f)
             val n = days.size
             val gap = 6.dp.toPx()
             val w = (size.width - gap * (n - 1)) / n

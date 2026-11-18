@@ -114,13 +114,13 @@ fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
             // Peso + tendencia
             val prevAvg = recent.filter { it.timestamp < weight.timestamp - 6L * 86_400_000 }.takeLast(7).map { it.kg }.average()
             val target = goal?.targetWeightKg
-            Text("Pesada guardada", color = Muted, fontSize = 13.sp)
-            Text("${num(weight.kg)} kg", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold)
+            Text("Pesada guardada", color = Muted, fontSize = Type.Small)
+            Text("${num(weight.kg)} kg", color = Color.White, fontSize = Type.Hero, fontWeight = FontWeight.Bold)
             val notes = buildList {
                 if (!prevAvg.isNaN()) add("%+.1f kg vs. la semana pasada".format(java.util.Locale("es", "AR"), weight.kg - prevAvg))
                 if (target != null) add(if (weight.kg > target) "faltan ${num(Math.round((weight.kg - target) * 10) / 10.0)} kg para ${num(target)}" else "objetivo cumplido")
             }
-            if (notes.isNotEmpty()) Text(notes.joinToString(" · "), color = Soft, fontSize = 14.sp)
+            if (notes.isNotEmpty()) Text(notes.joinToString(" · "), color = Soft, fontSize = Type.Body)
             if (recent.size >= 3) TrendChart(recent.map { it.kg }, target)
 
             // 1. Peso
@@ -159,10 +159,10 @@ fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
                         Modifier.fillMaxWidth().background(Card, RoundedCornerShape(14.dp)).padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("Tocan las medidas con cinta", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Tocan las medidas con cinta", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
                         Text(
                             (lastDate?.let { "Última: $it. " } ?: "") + "Cinta firme sin apretar, relajado, a la misma altura que la vez anterior.",
-                            color = Muted, fontSize = 13.sp,
+                            color = Muted, fontSize = Type.Small,
                         )
                         types.chunked(2).forEach { pair ->
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -189,7 +189,7 @@ fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(
                                 onClick = { measuresSkipped = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A)),
+                                colors = ButtonDefaults.buttonColors(containerColor = Surface2),
                                 modifier = Modifier.weight(1f),
                             ) { Text("Ahora no", color = Color.White) }
                             Button(
@@ -204,7 +204,7 @@ fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
                                     }
                                 },
                                 enabled = filled.isNotEmpty(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                                colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Track),
                                 modifier = Modifier.weight(1f),
                             ) { Text("Guardar", color = if (filled.isNotEmpty()) Color.White else Muted) }
                         }
@@ -219,7 +219,7 @@ fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Accent),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) { Text("Listo", color = Color.White, fontSize = 16.sp) }
+            ) { Text("Listo", color = Color.White, fontSize = Type.Large) }
         }
     }
 }
@@ -235,8 +235,8 @@ private fun Step(done: Boolean, title: String, detail: String) {
             tint = if (done) AccentLight else Muted, modifier = Modifier.size(24.dp),
         )
         Column(Modifier.padding(start = 12.dp)) {
-            Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(detail, color = Muted, fontSize = 13.sp)
+            Text(title, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
+            Text(detail, color = Muted, fontSize = Type.Small)
         }
     }
 }
@@ -250,10 +250,10 @@ private fun StepPending(title: String, detail: String, waiting: Boolean, onSkip:
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (waiting) CircularProgressIndicator(color = AccentLight, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
             else Icon(Icons.Outlined.Circle, contentDescription = null, tint = Muted, modifier = Modifier.size(24.dp))
-            Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp))
+            Text(title, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp))
         }
-        Text(detail, color = Muted, fontSize = 13.sp)
-        Text("Ahora no", color = AccentLight, fontSize = 14.sp, modifier = Modifier.clickable { onSkip() }.padding(vertical = 4.dp))
+        Text(detail, color = Muted, fontSize = Type.Small)
+        Text("Ahora no", color = AccentLight, fontSize = Type.Body, modifier = Modifier.clickable { onSkip() }.padding(vertical = 4.dp))
     }
 }
 

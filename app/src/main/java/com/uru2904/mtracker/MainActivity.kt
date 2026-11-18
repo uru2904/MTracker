@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
             FoodSeed.ensure(db)
             runCatching { FoodSeed.loadArgenfood(db, this@MainActivity) }
         }
-        setContent {
+        setContent { com.uru2904.mtracker.ui.MTrackerTheme {
             // La tablet solo mide y sube su uso de pantalla.
             var tablet by remember { mutableStateOf(com.uru2904.mtracker.usage.DeviceRole.isTablet(this)) }
             if (tablet) {
@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
                         com.uru2904.mtracker.usage.DeviceRole.set(this@MainActivity, false); tablet = false
                     }
                 }
-                return@setContent
+                return@MTrackerTheme
             }
             var tab by remember { mutableStateOf(Tab.Hoy) }
             androidx.activity.compose.BackHandler(enabled = tab != Tab.Hoy) { tab = Tab.Hoy }
@@ -125,7 +125,7 @@ class MainActivity : ComponentActivity() {
                 }
                 TabBar(if (tab.inBar) tab else Tab.Hoy) { tab = it }
             }
-        }
+        } }
     }
 
     override fun onNewIntent(intent: Intent) {

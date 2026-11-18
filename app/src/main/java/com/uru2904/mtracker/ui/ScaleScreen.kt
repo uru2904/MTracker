@@ -178,7 +178,7 @@ fun ScaleScreen(db: AppDatabase) {
 
     Column(Modifier.fillMaxSize().background(Color.Black)) {
         Text(
-            "Cuerpo", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            "Cuerpo", color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 8.dp),
         )
         Column(
@@ -191,8 +191,8 @@ fun ScaleScreen(db: AppDatabase) {
                 ?: weights90.firstOrNull()
             val target = goal?.targetWeightKg
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Peso actual", color = Muted, fontSize = 13.sp)
-                Text(last?.let { "${num(it.kg)} kg" } ?: "– kg", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                Text("Peso actual", color = Muted, fontSize = Type.Small)
+                Text(last?.let { "${num(it.kg)} kg" } ?: "– kg", color = Color.White, fontSize = Type.Number, fontWeight = FontWeight.Bold)
                 val notes = buildList {
                     if (last != null && monthAgo != null && monthAgo.id != last.id) {
                         val d = Math.round((last.kg - monthAgo.kg) * 10) / 10.0
@@ -203,7 +203,7 @@ fun ScaleScreen(db: AppDatabase) {
                         add(if (last.kg > target) "faltan ${num(Math.round((last.kg - target) * 10) / 10.0)} kg para ${num(target)}" else "objetivo cumplido")
                     }
                 }
-                if (notes.isNotEmpty()) Text(notes.joinToString(" · "), color = Soft, fontSize = 14.sp)
+                if (notes.isNotEmpty()) Text(notes.joinToString(" · "), color = Soft, fontSize = Type.Body)
             }
 
             // ---- Gráfico: peso o la medida seleccionada ----
@@ -217,27 +217,27 @@ fun ScaleScreen(db: AppDatabase) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(if (selType == null) "Peso" else selType.name, color = Muted, fontSize = 13.sp)
+                    Text(if (selType == null) "Peso" else selType.name, color = Muted, fontSize = Type.Small)
                 }
                 if (points.size < 2) Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                    Text(if (points.isEmpty()) "Sin datos todavía" else "Hace falta más de una medición para el gráfico", color = Muted, fontSize = 13.sp)
+                    Text(if (points.isEmpty()) "Sin datos todavía" else "Hace falta más de una medición para el gráfico", color = Muted, fontSize = Type.Small)
                 } else LineChart(points, if (selType == null) target else null, if (selType == null) "kg" else "cm")
                 if (points.size >= 2) Row(Modifier.fillMaxWidth().padding(start = 34.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     val f = DateTimeFormatter.ofPattern("d/M")
-                    Text(f.format(Instant.ofEpochMilli(points.first().first).atZone(zone)), color = Muted, fontSize = 10.sp)
-                    Text(f.format(Instant.ofEpochMilli(points.last().first).atZone(zone)), color = Muted, fontSize = 10.sp)
+                    Text(f.format(Instant.ofEpochMilli(points.first().first).atZone(zone)), color = Muted, fontSize = Type.Chart)
+                    Text(f.format(Instant.ofEpochMilli(points.last().first).atZone(zone)), color = Muted, fontSize = Type.Chart)
                 }
             }
 
             // ---- Medidas (tocar una la grafica) ----
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Tocá una para ver su gráfico", color = Muted, fontSize = 13.sp)
-                Text("+ Cargar medidas", color = AccentLight, fontSize = 13.sp, modifier = Modifier.clickable { addMeasures = true }.padding(4.dp))
+                Text("Tocá una para ver su gráfico", color = Muted, fontSize = Type.Small)
+                Text("+ Cargar medidas", color = AccentLight, fontSize = Type.Small, modifier = Modifier.clickable { addMeasures = true }.padding(4.dp))
             }
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
                 val rows = listOf<Pair<Long?, String>>(null to "Peso") + types.map { it.id to it.name }
                 rows.forEachIndexed { i, (id, name) ->
-                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Track))
                     val sel = selectedType == id
                     val (value, delta) = if (id == null) {
                         (last?.let { "${num(it.kg)} kg" } ?: "–") to null
@@ -252,20 +252,20 @@ fun ScaleScreen(db: AppDatabase) {
                         Modifier.fillMaxWidth().clickable { selectedType = id }.padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(name, color = if (sel) AccentLight else Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        Text(name, color = if (sel) AccentLight else Color.White, fontSize = Type.Body, modifier = Modifier.weight(1f))
                         delta?.takeIf { it != 0.0 }?.let {
-                            Text("${if (it > 0) "+" else ""}${num(it)}", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(end = 12.dp))
+                            Text("${if (it > 0) "+" else ""}${num(it)}", color = Muted, fontSize = Type.Small, modifier = Modifier.padding(end = 12.dp))
                         }
-                        Text(value, color = if (sel) AccentLight else if (value == "Sin cargar") Muted else Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(value, color = if (sel) AccentLight else if (value == "Sin cargar") Muted else Color.White, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
             measures.maxByOrNull { it.date }?.let {
-                Text("Últimas medidas: " + DateTimeFormatter.ofPattern("EEE d/M", es).format(LocalDate.parse(it.date)), color = Muted, fontSize = 12.sp)
+                Text("Últimas medidas: " + DateTimeFormatter.ofPattern("EEE d/M", es).format(LocalDate.parse(it.date)), color = Muted, fontSize = Type.Small)
             }
 
             // ---- Balanza ----
-            Text("Pesarse", color = Muted, fontSize = 13.sp)
+            Text("Pesarse", color = Muted, fontSize = Type.Small)
             Column(
                 Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -274,18 +274,18 @@ fun ScaleScreen(db: AppDatabase) {
                     Text(
                         live?.let { "${num(it.kg)} kg" } ?: "– – kg",
                         color = if (live?.stabilized == true) Color.White else Soft,
-                        fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                        fontSize = Type.Title, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
                     )
-                    Text("Reiniciar", color = AccentLight, fontSize = 13.sp, modifier = Modifier.clickable { launcher.launch(perms) }.padding(4.dp))
+                    Text("Reiniciar", color = AccentLight, fontSize = Type.Small, modifier = Modifier.clickable { launcher.launch(perms) }.padding(4.dp))
                 }
-                Text(status, color = Muted, fontSize = 13.sp)
+                Text(status, color = Muted, fontSize = Type.Small)
                 Text(
                     when {
                         scanError != null -> scanError!!
                         scanning -> "Escuchando" + ".".repeat(dots)
                         else -> "Sin escuchar"
                     },
-                    color = if (scanError != null) Color(0xFFF2C14E) else Muted, fontSize = 12.sp,
+                    color = if (scanError != null) Warn else Muted, fontSize = Type.Small,
                 )
             }
 
@@ -294,11 +294,11 @@ fun ScaleScreen(db: AppDatabase) {
                     Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text("¿Guardar ${num(r.kg)} kg?", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text("¿Guardar ${num(r.kg)} kg?", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(
                             onClick = { dismissedKg = r.kg; pending = null; status = "Descartado" },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Surface2),
                             modifier = Modifier.weight(1f),
                         ) { Text("Descartar", color = Color.White) }
                         Button(
@@ -317,10 +317,10 @@ fun ScaleScreen(db: AppDatabase) {
                 Text(
                     "Pesaje registrado. Bloqueado hasta las " +
                         DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(lockUntil).atZone(zone)),
-                    color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f),
+                    color = Muted, fontSize = Type.Small, modifier = Modifier.weight(1f),
                 )
                 Text(
-                    "Desbloquear", color = AccentLight, fontSize = 13.sp,
+                    "Desbloquear", color = AccentLight, fontSize = Type.Small,
                     modifier = Modifier.clickable {
                         lockUntil = 0L; prefs.edit().putLong("lock_until", 0L).apply(); dismissedKg = null
                     }.padding(start = 10.dp),
@@ -328,22 +328,22 @@ fun ScaleScreen(db: AppDatabase) {
             }
 
             // ---- Pesadas ----
-            Text("Pesadas · últimos 30 días", color = Muted, fontSize = 13.sp)
+            Text("Pesadas · últimos 30 días", color = Muted, fontSize = Type.Small)
             val fmt = DateTimeFormatter.ofPattern("EEE d/M HH:mm", es)
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
                 recent.reversed().take(15).forEachIndexed { i, w -> androidx.compose.runtime.key(w.id) {
-                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Color(0xFF1F1F1F)))
+                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 14.dp).height(1.dp).background(Track))
                     SwipeToDelete(onDelete = { toDelete = w }) {
                         Row(Modifier.fillMaxWidth().background(Card).clickable { detail = w }.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(fmt.format(Instant.ofEpochMilli(w.timestamp).atZone(zone)), color = Soft, fontSize = 14.sp)
+                            Text(fmt.format(Instant.ofEpochMilli(w.timestamp).atZone(zone)), color = Soft, fontSize = Type.Body)
                             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                fatByWeight[w.id]?.let { Text("${num(Math.round(it * 10) / 10.0)} %", color = Soft, fontSize = 15.sp) }
-                                Text("${num(w.kg)} kg", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                fatByWeight[w.id]?.let { Text("${num(Math.round(it * 10) / 10.0)} %", color = Soft, fontSize = Type.Body) }
+                                Text("${num(w.kg)} kg", color = Color.White, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
                 } }
-                if (recent.isEmpty()) Text("Todavía no hay pesadas.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(14.dp))
+                if (recent.isEmpty()) Text("Todavía no hay pesadas.", color = Muted, fontSize = Type.Body, modifier = Modifier.padding(14.dp))
             }
         }
     }
@@ -388,17 +388,17 @@ private fun LineChart(points: List<Pair<Long, Double>>, target: Double?, unit: S
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
         Text(
             DateTimeFormatter.ofPattern("EEE d/M/yy", Locale("es", "AR")).format(Instant.ofEpochMilli(p.first).atZone(zone)),
-            color = Muted, fontSize = 13.sp,
+            color = Muted, fontSize = Type.Small,
         )
-        Text("${num(Math.round(p.second * 10) / 10.0)} $unit", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text("${num(Math.round(p.second * 10) / 10.0)} $unit", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
     }
     Row(Modifier.fillMaxWidth().height(150.dp)) {
         Column(
             Modifier.fillMaxHeight().padding(end = 6.dp).width(28.dp),
             verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.End,
         ) {
-            Text(num(Math.round(max * 10) / 10.0), color = Muted, fontSize = 10.sp)
-            Text(num(Math.round(min * 10) / 10.0), color = Muted, fontSize = 10.sp)
+            Text(num(Math.round(max * 10) / 10.0), color = Muted, fontSize = Type.Chart)
+            Text(num(Math.round(min * 10) / 10.0), color = Muted, fontSize = Type.Chart)
         }
         Canvas(
             Modifier.weight(1f).fillMaxHeight()
@@ -425,7 +425,7 @@ private fun LineChart(points: List<Pair<Long, Double>>, target: Double?, unit: S
         ) {
             fun x(t: Long) = if (t1 == t0) size.width / 2 else ((t - t0).toFloat() / (t1 - t0)) * size.width
             fun y(v: Double) = (size.height * (1 - (v - min) / (max - min))).toFloat()
-            listOf(0f, 0.5f, 1f).forEach { f -> drawLine(Color(0xFF242424), Offset(0f, size.height * f), Offset(size.width, size.height * f), 1f) }
+            listOf(0f, 0.5f, 1f).forEach { f -> drawLine(Track, Offset(0f, size.height * f), Offset(size.width, size.height * f), 1f) }
             target?.let {
                 val ty = y(it); var xx = 0f
                 while (xx < size.width) { drawLine(Color(0xFF555555), Offset(xx, ty), Offset(xx + 6f, ty), 2f); xx += 12f }
@@ -454,8 +454,8 @@ private fun MeasuresDialog(db: AppDatabase, types: List<MeasurementType>, onClos
             Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Cargar medidas", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("Cinta firme sin apretar, relajado, a la misma altura que la vez anterior. Dejá vacías las que no midas.", color = Muted, fontSize = 13.sp)
+            Text("Cargar medidas", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
+            Text("Cinta firme sin apretar, relajado, a la misma altura que la vez anterior. Dejá vacías las que no midas.", color = Muted, fontSize = Type.Small)
             types.forEach { t ->
                 OutlinedTextField(
                     value = values[t.id] ?: "",
@@ -487,7 +487,7 @@ private fun MeasuresDialog(db: AppDatabase, types: List<MeasurementType>, onClos
                         }
                     },
                     enabled = filled.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Color(0xFF222222)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Track),
                     modifier = Modifier.weight(1f).height(52.dp),
                 ) { Text("Guardar", color = if (filled.isNotEmpty()) Color.White else Muted) }
             }

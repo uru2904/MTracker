@@ -173,7 +173,7 @@ fun CheckInCard(db: AppDatabase) {
         Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("Check-in semanal", color = AccentLight, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text("Check-in semanal", color = AccentLight, fontSize = Type.Small, fontWeight = FontWeight.SemiBold)
         val r = result
         if (r == null) {
             ReviewStep(days, checked, saving, onConfirm = ::confirmDays)
@@ -190,11 +190,11 @@ private val hhmm = DateTimeFormatter.ofPattern("HH:mm")
 @Composable
 private fun ReviewStep(days: List<ReviewDay>, checked: MutableMap<LocalDate, Boolean>, saving: Boolean, onConfirm: () -> Unit) {
     val expanded = remember { mutableStateMapOf<LocalDate, Boolean>() }
-    Text("Confirmá qué días cargaste completos", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-    Text("Solo esos entran en el cálculo de tu gasto. Tocá un día para ver sus comidas.", color = Soft, fontSize = 13.sp)
+    Text("Confirmá qué días cargaste completos", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
+    Text("Solo esos entran en el cálculo de tu gasto. Tocá un día para ver sus comidas.", color = Soft, fontSize = Type.Small)
     days.forEach { d ->
         val open = expanded[d.date] == true
-        Column(Modifier.fillMaxWidth().background(Color(0xFF1A1A1A), RoundedCornerShape(10.dp))) {
+        Column(Modifier.fillMaxWidth().background(Surface2, RoundedCornerShape(10.dp))) {
             Row(
                 Modifier.fillMaxWidth().clickable { expanded[d.date] = !open }.padding(end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -204,23 +204,23 @@ private fun ReviewStep(days: List<ReviewDay>, checked: MutableMap<LocalDate, Boo
                     colors = CheckboxDefaults.colors(checkedColor = Accent, uncheckedColor = Muted, checkmarkColor = Color.White),
                 )
                 val name = d.date.dayOfWeek.getDisplayName(TextStyle.SHORT, es).replaceFirstChar { it.uppercase() }.trimEnd('.')
-                Text("$name ${d.date.dayOfMonth}/${d.date.monthValue}", color = Color.White, fontSize = 14.sp,
+                Text("$name ${d.date.dayOfMonth}/${d.date.monthValue}", color = Color.White, fontSize = Type.Body,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text(
                     if (d.meals.isEmpty()) "Sin comidas" else "%,d kcal · %d g P".format(es, d.kcal.toInt(), d.protein.toInt()),
-                    color = if (d.meals.isEmpty()) Muted else Soft, fontSize = 13.sp,
+                    color = if (d.meals.isEmpty()) Muted else Soft, fontSize = Type.Small,
                 )
-                Text(if (open) "  ▾" else "  ▸", color = Muted, fontSize = 13.sp)
+                Text(if (open) "  ▾" else "  ▸", color = Muted, fontSize = Type.Small)
             }
             if (open) {
                 Column(Modifier.padding(start = 16.dp, end = 12.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (d.meals.isEmpty()) Text("No hay comidas cargadas este día.", color = Muted, fontSize = 13.sp)
+                    if (d.meals.isEmpty()) Text("No hay comidas cargadas este día.", color = Muted, fontSize = Type.Small)
                     d.meals.forEach { m ->
                         val time = if (m.timestamp > 0) Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()).format(hhmm) else ""
                         Row {
-                            Text("$time  ${m.mealType} · ${m.description}", color = Soft, fontSize = 12.sp,
+                            Text("$time  ${m.mealType} · ${m.description}", color = Soft, fontSize = Type.Small,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                            Text("  ${m.kcal.toInt()}", color = Muted, fontSize = 12.sp)
+                            Text("  ${m.kcal.toInt()}", color = Muted, fontSize = Type.Small)
                         }
                     }
                 }
@@ -238,14 +238,14 @@ private fun ReviewStep(days: List<ReviewDay>, checked: MutableMap<LocalDate, Boo
 @Composable
 private fun ResultStep(r: CheckIn, g: GoalPeriod?, onBack: () -> Unit, close: (String, Int?) -> Unit) {
     if (!r.ready) {
-        Text("Todavía faltan datos para calcular tu gasto real", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text("Todavía faltan datos para calcular tu gasto real", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
         Text(
             "Días completos: ${r.completeDays} de ${EnergyModel.MIN_COMPLETE_DAYS} · Pesadas: ${r.weighIns} de ${EnergyModel.MIN_WEIGH_INS} (últimos 21 días). " +
                 "Seguí cargando todo y pesándote: el objetivo queda como está.",
-            color = Soft, fontSize = 13.sp,
+            color = Soft, fontSize = Type.Small,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A)),
+            Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = Surface2),
                 modifier = Modifier.weight(1f)) { Text("Revisar días", color = Color.White) }
             Button(onClick = { close("Faltan datos", null) }, colors = ButtonDefaults.buttonColors(containerColor = Accent),
                 modifier = Modifier.weight(1f)) { Text("Entendido", color = Color.White) }
@@ -255,20 +255,20 @@ private fun ResultStep(r: CheckIn, g: GoalPeriod?, onBack: () -> Unit, close: (S
     val change = r.trendChangeKgPerWeek ?: 0.0
     Text(
         "Tu tendencia ${if (change <= 0) "bajó" else "subió"} ${num(Math.abs(Math.round(change * 100) / 100.0))} kg por semana",
-        color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+        color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold,
     )
     Text("Comiste en promedio %,d kcal · gasto estimado %,d kcal (confianza %s) · %d días completos".format(es, r.avgIntake, r.tdee, r.confidence.lowercase(), r.completeDays),
-        color = Soft, fontSize = 13.sp)
+        color = Soft, fontSize = Type.Small)
     val current = g?.kcalTarget ?: 2250
     val proposed = r.proposedKcal ?: current
     Text(
         if (proposed == current) "Tu objetivo sigue en %,d kcal para bajar ${num(LOSS_KG_PER_WEEK)} kg por semana.".format(es, current)
         else "Objetivo nuevo: %,d kcal (antes %,d) para bajar ${num(LOSS_KG_PER_WEEK)} kg por semana.".format(es, proposed, current),
-        color = Color.White, fontSize = 14.sp,
+        color = Color.White, fontSize = Type.Body,
     )
-    Text("‹ Revisar días", color = AccentLight, fontSize = 13.sp, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 4.dp))
+    Text("‹ Revisar días", color = AccentLight, fontSize = Type.Small, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 4.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Button(onClick = { close("Mantener", null) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1A)),
+        Button(onClick = { close("Mantener", null) }, colors = ButtonDefaults.buttonColors(containerColor = Surface2),
             modifier = Modifier.weight(1f)) { Text("Mantener", color = Color.White) }
         Button(onClick = { close("Aceptado", proposed) }, colors = ButtonDefaults.buttonColors(containerColor = Accent),
             modifier = Modifier.weight(1f)) { Text("Aceptar", color = Color.White) }
