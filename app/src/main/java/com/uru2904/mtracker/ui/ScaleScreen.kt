@@ -342,7 +342,7 @@ fun ScaleScreen(db: AppDatabase) {
                         }
                     }
                 } }
-                if (recent.isEmpty()) Text("Todavía no hay pesadas.", color = Muted, fontSize = Type.Body, modifier = Modifier.padding(14.dp))
+                if (recent.isEmpty()) Text("Todavía no hay pesadas. Subite a la balanza con esta pantalla abierta y la app la detecta sola.", color = Muted, fontSize = Type.Body, modifier = Modifier.padding(14.dp))
             }
         }
     }

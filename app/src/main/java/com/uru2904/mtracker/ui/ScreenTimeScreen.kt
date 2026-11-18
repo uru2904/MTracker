@@ -153,11 +153,11 @@ fun ScreenTimeScreen(db: AppDatabase, onBack: () -> Unit) {
                 color = Muted, fontSize = Type.Small,
             )
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(hmin(total), color = usageColor(total), fontSize = Type.Number, fontWeight = FontWeight.Bold)
+                Text(if (d == null) "–" else hmin(total), color = if (d == null) Muted else usageColor(total), fontSize = Type.Number, fontWeight = FontWeight.Bold)
                 Text("  de ${SCREEN_LIMIT_MIN / 60} h", color = Muted, fontSize = Type.Body, modifier = Modifier.padding(bottom = 6.dp))
             }
 
-            Column(
+            if (d == null) Skeleton(200.dp) else Column(
                 Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {

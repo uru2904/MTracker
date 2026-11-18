@@ -290,7 +290,7 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             val avg = if (withData.isEmpty()) null else withData.sumOf { it.totalMin } / withData.size
-                            Text(avg?.let { "${it / 60} h ${it % 60} min" } ?: "Sin datos", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
+                            Text(avg?.let { "${it / 60} h ${it % 60} min" } ?: if (data == null) "…" else "Sin datos", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
                             Text("promedio", color = Soft, fontSize = Type.Small)
                         }
                         val byDate = nights.associateBy { it.date }

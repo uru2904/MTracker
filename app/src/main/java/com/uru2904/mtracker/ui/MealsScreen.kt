@@ -273,7 +273,15 @@ fun MealsScreen(db: AppDatabase) {
                     else db.meals().update(m.copy(pendingOp = "delete"))
                     snack.undoable(
                         "Comida borrada",
-                        undo = { if (m.pendingOp == "add") db.meals().insert(m.copy(id = 0)) else db.meals().update(m) },
+                        undo = {
+                            // Si otra sincronización ya subió el borrado, se vuelve a agregar.
+                            val still = db.meals().pending().any { it.id == m.id }
+                            when {
+                                m.pendingOp == "add" -> db.meals().insert(m.copy(id = 0))
+                                still -> db.meals().update(m)
+                                else -> db.meals().insert(m.copy(id = 0, pendingOp = "add"))
+                            }
+                        },
                         commit = { runCatching { doSync(interactive = false) } },
                     )
                 }

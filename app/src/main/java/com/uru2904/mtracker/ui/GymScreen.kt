@@ -184,7 +184,9 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
         Column(
             Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 16.dp),
         ) {
-            if (sessions.isEmpty()) Text("Todavía no hay sesiones. Importá el CSV de Hevy.", color = Muted, fontSize = Type.Body)
+            val ready = "gym.sessions" in com.uru2904.mtracker.data.Live.loaded.collectAsState().value
+            if (!ready) Skeleton(240.dp)
+            else if (sessions.isEmpty()) EmptyState("Todavía no hay sesiones. Exportá el CSV desde Hevy (Perfil → Ajustes → Exportar datos) y compartilo con MTracker.", "Importar CSV", onImport)
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
                 sessions.take(100).forEachIndexed { i, w ->
                     if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Track))
