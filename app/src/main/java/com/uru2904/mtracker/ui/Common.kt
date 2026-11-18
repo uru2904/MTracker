@@ -20,6 +20,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Bedtime
@@ -241,7 +247,7 @@ fun ScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) androidx.compose.material3.IconButton(onClick = onBack) {
-            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = Color.White)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = Color.White)
         }
         Column(Modifier.weight(1f)) {
             Text(title, color = Color.White, fontSize = Type.Title, fontWeight = FontWeight.Bold)
@@ -269,17 +275,17 @@ fun DateSelector(
     val canNext = date < max
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         androidx.compose.material3.IconButton(onClick = { onChange(date.minusDays(1)) }, enabled = canPrev) {
-            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Día anterior", tint = if (canPrev) Soft else Disabled)
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Día anterior", tint = if (canPrev) Soft else Disabled)
         }
         Row(
             Modifier.weight(1f).clickable { picking = true }.padding(vertical = 10.dp),
             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(label, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
-            Icon(androidx.compose.material.icons.Icons.Filled.ArrowDropDown, "Elegir fecha", tint = Muted)
+            Icon(Icons.Filled.ArrowDropDown, "Elegir fecha", tint = Muted)
         }
         androidx.compose.material3.IconButton(onClick = { onChange(date.plusDays(1)) }, enabled = canNext) {
-            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight, "Día siguiente", tint = if (canNext) Soft else Disabled)
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Día siguiente", tint = if (canNext) Soft else Disabled)
         }
     }
     if (picking) {
