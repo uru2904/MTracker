@@ -43,6 +43,12 @@ interface MealDao {
     @Query("SELECT * FROM meal WHERE logicalDate = :date AND (pendingOp IS NULL OR pendingOp != 'delete') ORDER BY timestamp")
     fun forDay(date: String): Flow<List<MealEntry>>
 
+    @Query("SELECT * FROM meal WHERE logicalDate BETWEEN :from AND :to AND (pendingOp IS NULL OR pendingOp != 'delete') ORDER BY timestamp")
+    suspend fun between(from: String, to: String): List<MealEntry>
+
+    @Query("SELECT MIN(logicalDate) FROM meal WHERE pendingOp IS NULL OR pendingOp != 'delete'")
+    suspend fun firstDate(): String?
+
     @Query(
         "SELECT COALESCE(SUM(kcal),0) kcal, COALESCE(SUM(protein),0) protein, " +
             "COALESCE(SUM(carbs),0) carbs, COALESCE(SUM(fat),0) fat FROM meal WHERE logicalDate = :date " +
