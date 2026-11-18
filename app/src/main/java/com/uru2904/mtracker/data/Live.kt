@@ -40,6 +40,7 @@ object Live {
     fun goal(db: AppDatabase, date: String) = of("goal.$date", null) { db.goals().activeOn(date) }
     fun foods(db: AppDatabase) = of("foods.all", emptyList()) { db.foods().all() }
     fun meals(db: AppDatabase, date: String) = of("meals.$date", emptyList()) { db.meals().forDay(date) }
+    fun dayStatus(db: AppDatabase, date: String) = of("day.$date", null) { db.days().on(date) }
     fun totals(db: AppDatabase, date: String) = of("totals.$date", DayTotals(0.0, 0.0, 0.0, 0.0)) { db.meals().totals(date) }
 
     /** Precarga lo que usan las pantallas principales. */

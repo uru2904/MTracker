@@ -169,6 +169,25 @@ fun MealsScreen(db: AppDatabase) {
             Bar((totals.protein / protT).toFloat())
             Text("Carbohidratos ${num(totals.carbs)} / $carbT g · Grasas ${num(totals.fat)} / $fatT g", color = Soft, fontSize = 13.sp)
             if (drinks > 0) Text("Alcohol: ${num(drinks)} tragos", color = Soft, fontSize = 13.sp)
+            // Día completo: solo estos días entran en el cálculo del gasto real (check-in semanal).
+            val status by com.uru2904.mtracker.data.Live.dayStatus(db, key).collectAsState()
+            val complete = status?.complete == true
+            Row(
+                Modifier.fillMaxWidth().clickable {
+                    scope.launch {
+                        db.days().upsert(com.uru2904.mtracker.data.DayStatus(key, !complete, pending = true))
+                        doSync(interactive = false)
+                    }
+                }.padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.Checkbox(
+                    checked = complete, onCheckedChange = null,
+                    colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = Accent, uncheckedColor = Muted, checkmarkColor = Color.White),
+                )
+                Text(if (complete) "Día completo" else "Marcar día completo (todo cargado)", color = if (complete) Color.White else Soft,
+                    fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
+            }
         }
         }
 

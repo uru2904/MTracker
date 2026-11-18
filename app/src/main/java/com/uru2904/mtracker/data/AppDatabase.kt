@@ -9,9 +9,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         FoodItem::class, MealEntry::class, WorkoutSession::class, WorkoutSet::class,
-        WeightEntry::class, MeasurementType::class, MeasurementEntry::class, GoalPeriod::class,
+        WeightEntry::class, MeasurementType::class, MeasurementEntry::class, GoalPeriod::class, DayStatus::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,6 +21,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun weights(): WeightDao
     abstract fun measurements(): MeasurementDao
     abstract fun goals(): GoalDao
+    abstract fun days(): DayStatusDao
 
     companion object {
         private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
@@ -34,12 +35,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS day_status (date TEXT NOT NULL, complete INTEGER NOT NULL, pending INTEGER NOT NULL, PRIMARY KEY(date))")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "mtracker.db")
                 .addCallback(Seed)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 .also { instance = it }
         }

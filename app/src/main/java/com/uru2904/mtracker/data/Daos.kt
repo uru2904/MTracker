@@ -20,6 +20,9 @@ interface MealDao {
 
     @Insert suspend fun insertAll(meals: List<MealEntry>)
 
+    @Query("SELECT logicalDate, SUM(kcal) AS kcal FROM meal WHERE pendingOp IS NULL OR pendingOp != 'delete' GROUP BY logicalDate")
+    suspend fun kcalByDay(): List<DayKcal>
+
     @Query("SELECT * FROM meal WHERE pendingOp IS NOT NULL ORDER BY timestamp")
     suspend fun pending(): List<MealEntry>
 
@@ -164,9 +167,33 @@ interface MeasurementDao {
     suspend fun onDate(date: String): List<MeasurementEntry>
 }
 
+data class DayKcal(val logicalDate: String, val kcal: Double)
+
+@Dao
+interface DayStatusDao {
+    @androidx.room.Upsert suspend fun upsert(d: DayStatus)
+    @androidx.room.Upsert suspend fun upsertAll(d: List<DayStatus>)
+
+    @Query("SELECT * FROM day_status WHERE date = :date")
+    fun on(date: String): Flow<DayStatus?>
+
+    @Query("SELECT * FROM day_status")
+    suspend fun all(): List<DayStatus>
+
+    @Query("SELECT * FROM day_status WHERE pending = 1")
+    suspend fun pending(): List<DayStatus>
+
+    @Query("UPDATE day_status SET pending = 0 WHERE date IN (:dates)")
+    suspend fun markSynced(dates: List<String>)
+}
+
 @Dao
 interface GoalDao {
     @Insert suspend fun insert(g: GoalPeriod): Long
+    @Update suspend fun update(g: GoalPeriod)
+
+    @Query("SELECT * FROM goal_period WHERE :today BETWEEN startDate AND endDate ORDER BY startDate DESC LIMIT 1")
+    suspend fun activeNow(today: String): GoalPeriod?
 
     @Query("SELECT * FROM goal_period WHERE :today BETWEEN startDate AND endDate ORDER BY startDate DESC LIMIT 1")
     fun activeOn(today: String): Flow<GoalPeriod?>

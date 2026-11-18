@@ -171,12 +171,53 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         }
     }
 
+    /** Días completos: sube los marcados en la app y trae los marcados en la planilla (pestaña "Días"). */
+    suspend fun syncDays(token: String) {
+        val id = sheetId ?: return
+        withContext(Dispatchers.IO) {
+            ensureTab(id, "Días", token)
+            val sheet = get(id, "Días!A2:B", token).mapNotNull { r ->
+                val d = r.getOrNull(0)?.trim().orEmpty()
+                if (d.isEmpty()) null else d to (r.getOrNull(1)?.trim()?.uppercase() in setOf("SI", "SÍ", "TRUE", "1"))
+            }.toMap().toMutableMap()
+            val pending = db.days().pending()
+            pending.forEach { sheet[it.date] = it.complete }
+            if (pending.isNotEmpty()) {
+                val values = JSONArray().put(JSONArray().put("Fecha").put("Completo"))
+                sheet.toSortedMap().forEach { (d, c) -> values.put(JSONArray().put(d).put(if (c) "SI" else "NO")) }
+                send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Días!A:B") + ":clear", token, JSONObject())
+                send("PUT", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Días!A1") + "?valueInputOption=RAW",
+                    token, JSONObject().put("values", values))
+                db.days().markSynced(pending.map { it.date })
+            }
+            db.days().upsertAll(sheet.map { (d, c) -> com.uru2904.mtracker.data.DayStatus(d, c, pending = false) }
+                .filter { s -> pending.none { it.date == s.date } })
+        }
+    }
+
+    /** Registro de check-ins semanales (pestaña "Check-ins"), para las alertas y el historial. */
+    suspend fun logCheckIn(token: String, row: List<Any>) {
+        val id = sheetId ?: return
+        withContext(Dispatchers.IO) {
+            ensureTab(id, "Check-ins", token)
+            if (get(id, "Check-ins!A1:A1", token).isEmpty()) {
+                send("PUT", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Check-ins!A1") + "?valueInputOption=RAW", token,
+                    JSONObject().put("values", JSONArray().put(JSONArray().put("Fecha").put("Días completos").put("Ingesta prom.")
+                        .put("Tendencia (kg/sem)").put("Gasto estimado").put("Objetivo anterior").put("Objetivo nuevo").put("Decisión"))))
+            }
+            send("POST", "https://sheets.googleapis.com/v4/spreadsheets/$id/values/" + enc("Check-ins!A:H") +
+                ":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS", token,
+                JSONObject().put("values", JSONArray().put(JSONArray().apply { row.forEach { put(it) } })))
+        }
+    }
+
     /** Todo junto: comidas, gym, medidas y resumen diario. Los errores de lo secundario no frenan las comidas. */
     suspend fun syncAll(token: String, health: com.uru2904.mtracker.health.HealthRepository) {
         val tablet = com.uru2904.mtracker.usage.DeviceRole.isTablet(context)
         runCatching { writeUsage(token, tablet, com.uru2904.mtracker.usage.UsageReader(context).daily(7)) }
         if (tablet) return
         sync(token)
+        runCatching { syncDays(token) }
         runCatching { com.uru2904.mtracker.sync.WeightImport.run(context, db, health) }
         runCatching { writeWeights(token) }
         runCatching { writeGym(token) }

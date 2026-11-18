@@ -112,3 +112,12 @@ data class GoalPeriod(
     val carbsTarget: Int,
     val fatTarget: Int,
 )
+
+
+/** Día marcado como completo (todo lo comido está cargado). Solo esos días entran en el cálculo del gasto. */
+@Entity(tableName = "day_status")
+data class DayStatus(
+    @PrimaryKey val date: String, // yyyy-MM-dd (día lógico)
+    val complete: Boolean,
+    val pending: Boolean = true, // falta subirlo a la planilla
+)

@@ -197,6 +197,8 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                 error?.let { Notice("Error al leer Health Connect: $it", null) {} }
                 importMsg?.let { Notice(it, "OK") { importMsg = null } }
 
+                CheckInCard(db)
+
                 // ---- Anillos del día ----
                 val protT = goal?.proteinTarget ?: 150
                 val night = data?.night?.takeIf { ChronoUnit.DAYS.between(it.date, LocalDate.now()) <= 1 }
