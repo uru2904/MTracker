@@ -10,7 +10,7 @@ class MacroInputTest {
         // Leche Protein 400 ml: 168 kcal, 21 P, 18,4 C -> grasas ~0
         val r = macroInput("168", "21", "18,4", "")!!
         assertEquals(3, r.auto)
-        assertEquals(0.0, r.fat, 0.3)
+        assertEquals(1.2, r.fat, 0.2) // la etiqueta redondea; da ~1 g
     }
 
     @Test fun calculaKcalSiFaltan() {
