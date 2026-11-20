@@ -31,7 +31,8 @@ object Live {
     @Suppress("UNCHECKED_CAST")
     fun <T> of(key: String, initial: T, flow: () -> Flow<T>): StateFlow<T> =
         cache.getOrPut(key) {
-            flow().onEach { if (key !in loaded.value) loaded.update { it + key } } // update = atómico (varias consultas cargan en paralelo).stateIn(scope, SharingStarted.Eagerly, initial)
+            // update = atómico: varias consultas cargan en paralelo y no se pisan.
+            flow().onEach { if (key !in loaded.value) loaded.update { it + key } }.stateIn(scope, SharingStarted.Eagerly, initial)
         } as StateFlow<T>
 
     /** Inicio del día de hace [days] días, en ms (estable durante el día, para reutilizar la misma consulta). */
