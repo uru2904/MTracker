@@ -15,6 +15,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 
 /**
  * Datos de la base que quedan "vivos" en memoria mientras la app está abierta.
@@ -30,7 +31,7 @@ object Live {
     @Suppress("UNCHECKED_CAST")
     fun <T> of(key: String, initial: T, flow: () -> Flow<T>): StateFlow<T> =
         cache.getOrPut(key) {
-            flow().onEach { if (key !in loaded.value) loaded.value = loaded.value + key }.stateIn(scope, SharingStarted.Eagerly, initial)
+            flow().onEach { if (key !in loaded.value) loaded.update { it + key } } // update = atómico (varias consultas cargan en paralelo).stateIn(scope, SharingStarted.Eagerly, initial)
         } as StateFlow<T>
 
     /** Inicio del día de hace [days] días, en ms (estable durante el día, para reutilizar la misma consulta). */

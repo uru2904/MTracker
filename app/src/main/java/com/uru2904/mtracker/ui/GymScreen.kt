@@ -4,6 +4,7 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -169,12 +170,15 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
             }
             Row(Modifier.fillMaxWidth().padding(start = 34.dp)) {
                 weeks.forEachIndexed { i, m ->
-                    Text(
-                        if (i == weeks.size - 1) "Actual" else DateTimeFormatter.ofPattern("d/M").format(m),
-                        color = if (i == selected) Color.White else Muted, fontSize = Type.Chart,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.weight(1f),
-                    )
+                    // Una sola línea siempre: si la columna es angosta, el texto puede pasarse un poco a los costados (centrado).
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        Text(
+                            if (i == weeks.size - 1) "Actual" else DateTimeFormatter.ofPattern("d/M").format(m),
+                            color = if (i == selected) Color.White else Muted, fontSize = Type.Chart,
+                            maxLines = 1, softWrap = false,
+                            modifier = Modifier.wrapContentWidth(unbounded = true),
+                        )
+                    }
                 }
             }
         }
@@ -185,7 +189,7 @@ fun GymScreen(db: AppDatabase, onImport: () -> Unit) {
             Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 16.dp),
         ) {
             val ready = "gym.sessions" in com.uru2904.mtracker.data.Live.loaded.collectAsState().value
-            if (!ready) Skeleton(240.dp)
+            if (sessions.isEmpty() && !ready) Skeleton(240.dp)
             else if (sessions.isEmpty()) EmptyState("Todavía no hay sesiones. Exportá el CSV desde Hevy (Perfil → Ajustes → Exportar datos) y compartilo con MTracker.", "Importar CSV", onImport)
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
                 sessions.take(100).forEachIndexed { i, w ->

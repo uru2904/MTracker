@@ -214,7 +214,7 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                     Ring(
                         Modifier.weight(1f).clickable { onNavigate(Tab.Gym) }, gymDays / 3f,
                         when { gymDays >= 3 -> Green; gymDays == 2 -> Yellow; else -> Red },
-                        "$gymDays / 3", "últimos 7 días", "Entrenamientos",
+                        "$gymDays / 3", "en 7 días", "Entrenamientos",
                     )
                     val pf = (totals.protein / protT).toFloat()
                     Ring(
@@ -373,8 +373,8 @@ private fun Ring(modifier: Modifier, fraction: Float, color: Color, value: Strin
                 drawArc(color, -90f, 360f * fraction.coerceIn(0f, 1f), false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(value, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                Text(sub, color = Muted, fontSize = Type.Chart, textAlign = TextAlign.Center)
+                Text(value, color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1)
+                Text(sub, color = Muted, fontSize = Type.Chart, textAlign = TextAlign.Center, maxLines = 1)
             }
         }
         Text(label, color = Soft, fontSize = Type.Small)

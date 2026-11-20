@@ -44,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -754,18 +755,21 @@ private fun MealRow(m: MealEntry, time: String, onClick: () -> Unit, onDelete: (
         },
     ) {
         Row(
-            Modifier.fillMaxWidth().background(Card).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.Top,
+            Modifier.fillMaxWidth().background(Card).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.width(50.dp)) {
-                Text(time, color = Soft, fontSize = Type.Small)
-                if (m.pendingOp != null) Box(Modifier.padding(top = 6.dp).size(6.dp).background(Color(0xFFB45309), RoundedCornerShape(3.dp)))
+            // Compacta (estilo MacroFactor): hora y tipo a la izquierda; descripción en 1 línea; barra y macros en la misma línea.
+            Column(Modifier.width(62.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(time, color = Soft, fontSize = Type.Small)
+                    if (m.pendingOp != null) Box(Modifier.padding(start = 4.dp).size(5.dp).background(Color(0xFFB45309), RoundedCornerShape(3.dp)))
+                }
+                Text(m.mealType, color = Muted, fontSize = Type.Chart, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(m.mealType, color = Muted, fontSize = Type.Chart)
-                Text(m.description, color = Color.White, fontSize = Type.Body, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                MacroBar(m.protein, m.carbs, m.fat)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(m.description, color = Color.White, fontSize = Type.Body, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.width(48.dp)) { MacroBar(m.protein, m.carbs, m.fat) }
                     Text("P ${num(m.protein)}", color = ProtColor, fontSize = Type.Chart)
                     Text("C ${num(m.carbs)}", color = CarbColor, fontSize = Type.Chart)
                     Text("G ${num(m.fat)}", color = FatColor, fontSize = Type.Chart)
@@ -781,7 +785,7 @@ private fun MealRow(m: MealEntry, time: String, onClick: () -> Unit, onDelete: (
 private fun MacroBar(p: Double, c: Double, f: Double) {
     val kp = p * 4; val kc = c * 4; val kf = f * 9
     val total = (kp + kc + kf).takeIf { it > 0 } ?: return
-    Row(Modifier.fillMaxWidth().height(4.dp)) {
+    Row(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))) {
         listOf(kp to ProtColor, kc to CarbColor, kf to FatColor).forEach { (v, col) ->
             if (v > 0) Box(Modifier.weight((v / total).toFloat()).fillMaxHeight().background(col))
         }
