@@ -335,6 +335,73 @@ private fun Bar(fraction: Float) {
 
 private fun parse(s: String): Double? = s.trim().replace(',', '.').toDoubleOrNull()
 
+/** Resultado de los 4 campos: valores finales, cuál se calculó solo (0 kcal, 1 P, 2 C, 3 G) y si no cierran. */
+data class MacroInput(val kcal: Double, val protein: Double, val carbs: Double, val fat: Double, val auto: Int?, val mismatchKcal: Double?)
+
+/**
+ * Si dejás vacío uno de los 4 (kcal, P, C, G), lo calcula con los otros 3 (P y C 4 kcal/g, G 9 kcal/g).
+ * Si están los 4 y no cierran (más de 15% o 25 kcal de diferencia), avisa. Sin kcal ni forma de calcularlas: null.
+ */
+fun macroInput(k: String, p: String, c: String, f: String): MacroInput? {
+    val v = listOf(parse(k), parse(p), parse(c), parse(f))
+    val blanks = v.indices.filter { v[it] == null }
+    fun fromMacros(pp: Double, cc: Double, ff: Double) = pp * 4 + cc * 4 + ff * 9
+    return when {
+        blanks.isEmpty() -> {
+            val m = fromMacros(v[1]!!, v[2]!!, v[3]!!)
+            val off = Math.abs(m - v[0]!!) > maxOf(25.0, v[0]!! * 0.15)
+            MacroInput(v[0]!!, v[1]!!, v[2]!!, v[3]!!, null, if (off) m else null)
+        }
+        blanks.size == 1 -> {
+            val i = blanks[0]
+            val kk = v[0]; val pp = v[1]; val cc = v[2]; val ff = v[3]
+            when (i) {
+                0 -> MacroInput(fromMacros(pp!!, cc!!, ff!!), pp, cc, ff, 0, null)
+                1 -> MacroInput(kk!!, maxOf(0.0, (kk - cc!! * 4 - ff!! * 9) / 4), cc, ff, 1, null)
+                2 -> MacroInput(kk!!, pp!!, maxOf(0.0, (kk - pp * 4 - ff!! * 9) / 4), ff, 2, null)
+                else -> MacroInput(kk!!, pp!!, cc!!, maxOf(0.0, (kk - pp * 4 - cc * 4) / 9), 3, null)
+            }
+        }
+        // Faltan 2 o más: hacen falta las kcal; los macros vacíos quedan en 0.
+        v[0] != null -> MacroInput(v[0]!!, v[1] ?: 0.0, v[2] ?: 0.0, v[3] ?: 0.0, null, null)
+        else -> null
+    }
+}
+
+/** Los 4 campos de macros + la línea que muestra el valor calculado o el aviso de que no cierran. */
+@Composable
+private fun MacroFields(
+    kcal: String, prot: String, carbs: String, fat: String,
+    onKcal: (String) -> Unit, onProt: (String) -> Unit, onCarbs: (String) -> Unit, onFat: (String) -> Unit,
+    short: Boolean = false,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        field(kcal, "kcal", onKcal, true, Modifier.weight(1f))
+        field(prot, if (short) "Prot" else "Proteína g", onProt, true, Modifier.weight(1f))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        field(carbs, if (short) "Carbos" else "Carbos g", onCarbs, true, Modifier.weight(1f))
+        field(fat, if (short) "Grasas" else "Grasas g", onFat, true, Modifier.weight(1f))
+    }
+    val r = macroInput(kcal, prot, carbs, fat)
+    when {
+        r?.auto != null -> {
+            val (name, value) = when (r.auto) {
+                0 -> "kcal" to "${r.kcal.toInt()}"
+                1 -> "Proteína" to "${num(Math.round(r.protein * 10) / 10.0)} g"
+                2 -> "Carbos" to "${num(Math.round(r.carbs * 10) / 10.0)} g"
+                else -> "Grasas" to "${num(Math.round(r.fat * 10) / 10.0)} g"
+            }
+            Text("Calculado: $name = $value", color = AccentLight, fontSize = Type.Small)
+        }
+        r?.mismatchKcal != null -> Text(
+            "Ojo: los macros suman ${r.mismatchKcal.toInt()} kcal, no ${r.kcal.toInt()}. ¿Están cruzados? Dejá uno vacío y se calcula solo.",
+            color = Warn, fontSize = Type.Small,
+        )
+        else -> Text("Dejá uno vacío y se calcula con los otros tres.", color = Muted, fontSize = Type.Small)
+    }
+}
+
 @Composable
 private fun field(value: String, label: String, onChange: (String) -> Unit, numeric: Boolean = false, modifier: Modifier = Modifier.fillMaxWidth()) {
     OutlinedTextField(
@@ -498,21 +565,14 @@ private fun AddMealDialog(db: AppDatabase, onDismiss: () -> Unit, onSave: (MealE
                     field(mName, "Nombre", { mName = it })
                     field(mPortion, "Porción (ej: 1 plato, 1 vaso)", { mPortion = it })
                     PortionChips { mPortion = it }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        field(mKcal, "kcal", { mKcal = it }, true, Modifier.weight(1f))
-                        field(mProt, "Proteína g", { mProt = it }, true, Modifier.weight(1f))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        field(mCarbs, "Carbos g", { mCarbs = it }, true, Modifier.weight(1f))
-                        field(mFat, "Grasas g", { mFat = it }, true, Modifier.weight(1f))
-                    }
-                    val ok = mName.isNotBlank() && parse(mKcal) != null
+                    MacroFields(mKcal, mProt, mCarbs, mFat, { mKcal = it }, { mProt = it }, { mCarbs = it }, { mFat = it })
+                    val mi = macroInput(mKcal, mProt, mCarbs, mFat)
+                    val ok = mName.isNotBlank() && mi != null
                     Button(
                         onClick = {
                             val f = FoodItem(
                                 name = mName.trim(), portion = mPortion.ifBlank { "1 porción" },
-                                kcal = parse(mKcal) ?: 0.0, protein = parse(mProt) ?: 0.0,
-                                carbs = parse(mCarbs) ?: 0.0, fat = parse(mFat) ?: 0.0, source = "propio",
+                                kcal = mi!!.kcal, protein = mi.protein, carbs = mi.carbs, fat = mi.fat, source = "propio",
                             )
                             scope.launch { db.foods().insert(f) }
                             items.add(Item(f.name, f.portion, f.kcal, f.protein, f.carbs, f.fat))
@@ -673,21 +733,14 @@ private fun FoodEditor(db: AppDatabase, initial: FoodItem?, snack: androidx.comp
             field(portion, "Porción (ej: 1 vaso, 1 plato)", { portion = it })
             PortionChips { portion = it }
             Text("Valores por porción", color = Muted, fontSize = Type.Small)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                field(kcal, "kcal", { kcal = it }, true, Modifier.weight(1f))
-                field(prot, "Proteína g", { prot = it }, true, Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                field(carbs, "Carbos g", { carbs = it }, true, Modifier.weight(1f))
-                field(fat, "Grasas g", { fat = it }, true, Modifier.weight(1f))
-            }
-            val ok = name.isNotBlank() && parse(kcal) != null
+            MacroFields(kcal, prot, carbs, fat, { kcal = it }, { prot = it }, { carbs = it }, { fat = it })
+            val mi = macroInput(kcal, prot, carbs, fat)
+            val ok = name.isNotBlank() && mi != null
             Button(
                 onClick = {
                     val item = FoodItem(
                         id = initial?.id ?: 0, name = name.trim(), portion = portion.ifBlank { "1 porción" },
-                        kcal = parse(kcal) ?: 0.0, protein = parse(prot) ?: 0.0,
-                        carbs = parse(carbs) ?: 0.0, fat = parse(fat) ?: 0.0,
+                        kcal = mi!!.kcal, protein = mi.protein, carbs = mi.carbs, fat = mi.fat,
                         source = initial?.source ?: "propio",
                     )
                     scope.launch {
@@ -899,7 +952,8 @@ private fun MealEditor(
         kcal = num(Math.round(m.kcal * f).toDouble()); prot = num(Math.round(m.protein * f * 10) / 10.0)
         carbs = num(Math.round(m.carbs * f * 10) / 10.0); fat = num(Math.round(m.fat * f * 10) / 10.0)
     }
-    val ok = desc.isNotBlank() && listOf(kcal, prot, carbs, fat).all { d(it) != null }
+    val mi = macroInput(kcal, prot, carbs, fat)
+    val ok = desc.isNotBlank() && mi != null
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
@@ -926,14 +980,7 @@ private fun MealEditor(
                         androidx.compose.material3.FilterChip(selected = factor == f, onClick = { scale(f) }, label = { Text("×" + num(f)) })
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    field(kcal, "kcal", { kcal = it }, numeric = true, modifier = Modifier.weight(1f))
-                    field(prot, "Prot", { prot = it }, numeric = true, modifier = Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    field(carbs, "Carbos", { carbs = it }, numeric = true, modifier = Modifier.weight(1f))
-                    field(fat, "Grasas", { fat = it }, numeric = true, modifier = Modifier.weight(1f))
-                }
+                MacroFields(kcal, prot, carbs, fat, { kcal = it }, { prot = it }, { carbs = it }, { fat = it }, short = true)
                 androidx.compose.material3.TextButton(onClick = onDelete) {
                     Icon(Icons.Outlined.Delete, null, tint = Danger, modifier = Modifier.size(18.dp))
                     Text("  Borrar comida", color = Danger)
@@ -947,7 +994,7 @@ private fun MealEditor(
                 if (calendar.logicalDate(at) != date) at = at.plusDays(1)
                 onSave(m.copy(
                     mealType = type, description = desc.trim(), timestamp = at.atZone(zone).toInstant().toEpochMilli(),
-                    kcal = d(kcal)!!, protein = d(prot)!!, carbs = d(carbs)!!, fat = d(fat)!!,
+                    kcal = mi!!.kcal, protein = mi.protein, carbs = mi.carbs, fat = mi.fat,
                     confidence = if (factor != 1.0) (m.confidence?.let { "$it · porción ×${num(factor)}" } ?: "Porción ×${num(factor)}") else m.confidence,
                 ))
             }) { Text("Guardar", color = if (ok) AccentLight else Muted) }
