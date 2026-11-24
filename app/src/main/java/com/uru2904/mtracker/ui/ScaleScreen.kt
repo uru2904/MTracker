@@ -96,6 +96,7 @@ fun ScaleScreen(db: AppDatabase) {
     val raw = remember { mutableStateListOf<String>() }
     var showRaw by remember { mutableStateOf(false) }
     var weighed by remember { mutableStateOf<WeightEntry?>(null) }
+    var weighing by remember { mutableStateOf(false) } // hoja "Pesarse" abierta
     val since = remember { com.uru2904.mtracker.data.Live.daysAgo(30) }
     val recent by com.uru2904.mtracker.data.Live.weightsSince(db, since).collectAsState()
 
@@ -174,7 +175,6 @@ fun ScaleScreen(db: AppDatabase) {
     }
 
     // La balanza se escucha solo con la hoja "Pesarse" abierta.
-    var weighing by remember { mutableStateOf(false) }
     LaunchedEffect(weighing) {
         if (weighing) launcher.launch(perms) else { scanner.stop(); scanning = false; live = null; pending = null }
     }
