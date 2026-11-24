@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
@@ -224,12 +225,11 @@ fun ScaleScreen(db: AppDatabase) {
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Peso tendencia", color = Muted, fontSize = Type.Small, modifier = Modifier.weight(1f))
+                    Text(trend.lastOrNull()?.let { "${num(Math.round(it.second * 10) / 10.0)} kg" } ?: "– kg",
+                        color = Color.White, fontSize = Type.Number, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     if (weights90.isNotEmpty()) Text("Historial ›", color = AccentLight, fontSize = Type.Body,
                         modifier = Modifier.minimumInteractiveComponentSize().clickable { allWeighIns = true }.padding(4.dp))
                 }
-                Text(trend.lastOrNull()?.let { "${num(Math.round(it.second * 10) / 10.0)} kg" } ?: "– kg",
-                    color = Color.White, fontSize = Type.Number, fontWeight = FontWeight.Bold)
                 val projKg = if (rate != null && goalEnd != null && trend.isNotEmpty())
                     com.uru2904.mtracker.domain.WeightTrend.projection(trend.last(), rate, goalEnd) else null
                 Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
@@ -261,7 +261,7 @@ fun ScaleScreen(db: AppDatabase) {
                 val proj = if (showProj) listOf(ms(trend.last().first) to trend.last().second,
                     ms(goalEnd!!) to com.uru2904.mtracker.domain.WeightTrend.projection(trend.last(), rate!!, goalEnd)) else emptyList()
 
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp).height(40.dp), verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f).height(32.dp).background(Surface2, RoundedCornerShape(10.dp)).padding(3.dp)) {
                         listOf(30 to "30 d", 60 to "60 d", 91 to "3 m", 182 to "6 m", 0 to "Todo").forEach { (d, label) ->
                             val on = rangeDays == d
@@ -272,8 +272,11 @@ fun ScaleScreen(db: AppDatabase) {
                             ) { Text(label, color = if (on) Color.White else Soft, fontSize = Type.Small) }
                         }
                     }
-                    if (off > 0.5f) Text("Hoy", color = AccentLight, fontSize = Type.Small,
-                        modifier = Modifier.minimumInteractiveComponentSize().clickable { offsetDays = 0f }.padding(start = 8.dp))
+                    val moved = off > 0.5f
+                    Box(
+                        Modifier.width(48.dp).fillMaxHeight().then(if (moved) Modifier.clickable { offsetDays = 0f } else Modifier),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("Hoy", color = if (moved) AccentLight else Color.Transparent, fontSize = Type.Small) }
                 }
                 Box(
                     Modifier.fillMaxWidth().pointerInput(rangeDays, maxOffset) {
@@ -347,7 +350,7 @@ fun ScaleScreen(db: AppDatabase) {
     // ---- Hoja de pesaje ----
     if (weighing) Dialog(onDismissRequest = { weighing = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxSize().background(Color.Black).padding(20.dp),
+            Modifier.fillMaxSize().background(Color.Black).navigationBarsPadding().padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             ScreenHeader("Pesarse", onBack = { weighing = false })
@@ -367,6 +370,8 @@ fun ScaleScreen(db: AppDatabase) {
                 color = if (scanError != null) Warn else Muted, fontSize = Type.Body,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
+            Text("Reiniciar Bluetooth", color = AccentLight, fontSize = Type.Body,
+                modifier = Modifier.align(Alignment.CenterHorizontally).minimumInteractiveComponentSize().clickable { launcher.launch(perms) }.padding(8.dp))
             pending?.let { r ->
                 Text("¿Guardar ${num(r.kg)} kg?", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.align(Alignment.CenterHorizontally))
@@ -384,8 +389,6 @@ fun ScaleScreen(db: AppDatabase) {
             Spacer(Modifier.weight(1f))
             Text("Subite descalzo, quieto, hasta que el número se quede fijo. Mejor al despertar, después del baño.",
                 color = Muted, fontSize = Type.Small, modifier = Modifier.align(Alignment.CenterHorizontally))
-            Text("Reiniciar Bluetooth", color = AccentLight, fontSize = Type.Body,
-                modifier = Modifier.align(Alignment.CenterHorizontally).minimumInteractiveComponentSize().clickable { launcher.launch(perms) }.padding(8.dp))
         }
     }
 
