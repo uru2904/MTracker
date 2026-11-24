@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">MTracker</string>
+    <string name="widget_tu_dia_desc">Tu día: kcal, proteína y estado, con botón para cargar comida</string>
+    <string name="widget_semaforo_desc">Semáforo: comida, gym, sueño, peso y pantalla</string>
+    <string name="widget_macros_desc">Macros: kcal que quedan y el resto de los macros</string>
+    <string name="widget_gym_desc">Gym: próxima rutina y entrenamientos de la semana</string>
+    <string name="widget_rio_desc">Objetivo: cuenta regresiva y peso</string>
 </resources>

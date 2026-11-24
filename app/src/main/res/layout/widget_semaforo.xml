@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget "Semáforo" (4x1): los cinco temas de la notificación diaria. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:background="@drawable/widget_bg" android:paddingHorizontal="10dp" android:gravity="center_vertical">
+    <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+        <ImageView android:id="@+id/dot0" android:layout_width="9dp" android:layout_height="9dp" android:src="@drawable/dot_gray" android:layout_marginEnd="4dp" />
+        <TextView android:id="@+id/name0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Comida" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+        <ImageView android:id="@+id/dot1" android:layout_width="9dp" android:layout_height="9dp" android:src="@drawable/dot_gray" android:layout_marginEnd="4dp" />
+        <TextView android:id="@+id/name1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Gym" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+        <ImageView android:id="@+id/dot2" android:layout_width="9dp" android:layout_height="9dp" android:src="@drawable/dot_gray" android:layout_marginEnd="4dp" />
+        <TextView android:id="@+id/name2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Sueño" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+        <ImageView android:id="@+id/dot3" android:layout_width="9dp" android:layout_height="9dp" android:src="@drawable/dot_gray" android:layout_marginEnd="4dp" />
+        <TextView android:id="@+id/name3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Peso" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+        <ImageView android:id="@+id/dot4" android:layout_width="9dp" android:layout_height="9dp" android:src="@drawable/dot_gray" android:layout_marginEnd="4dp" />
+        <TextView android:id="@+id/name4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pantalla" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" />
+    </LinearLayout>
+</LinearLayout>

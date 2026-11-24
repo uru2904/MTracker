@@ -90,6 +90,11 @@ fun MealsScreen(db: AppDatabase) {
     val totals by com.uru2904.mtracker.data.Live.totals(db, key).collectAsState()
     val goal by com.uru2904.mtracker.data.Live.goal(db, today.toString()).collectAsState()
     var adding by remember { mutableStateOf(false) }
+    // El botón "+ Comida" del widget abre directo la carga.
+    val addReq = com.uru2904.mtracker.data.Nav.addMeal.intValue
+    LaunchedEffect(addReq) {
+        if (addReq > com.uru2904.mtracker.data.Nav.addMealHandled) { com.uru2904.mtracker.data.Nav.addMealHandled = addReq; adding = true }
+    }
     var showFoods by remember { mutableStateOf(false) }
     var toDelete by remember { mutableStateOf<MealEntry?>(null) }
     var editingMeal by remember { mutableStateOf<MealEntry?>(null) }

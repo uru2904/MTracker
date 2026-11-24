@@ -57,6 +57,7 @@ abstract class AppDatabase : RoomDatabase() {
                     ) {
                         override fun onInvalidated(tables: Set<String>) {
                             runCatching { com.uru2904.mtracker.backup.DriveBackup.onChange(app) }
+                            runCatching { com.uru2904.mtracker.widget.WidgetUpdater.request(app) }
                         }
                     })
                 }

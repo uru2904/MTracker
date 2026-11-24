@@ -63,6 +63,13 @@ object Live {
 fun <T> StateFlow<T>.live(): State<T> = remember(this) { this }.collectAsState()
 
 /** Últimos resultados leídos de Health Connect, para mostrarlos al volver a una pantalla mientras se actualizan. */
+/** Pedidos de navegación que llegan desde widgets y notificaciones. */
+object Nav {
+    /** Se incrementa cuando el widget pide abrir la carga de comida. */
+    val addMeal = androidx.compose.runtime.mutableIntStateOf(0)
+    var addMealHandled = 0
+}
+
 object UiCache {
     @Volatile var inicio: Any? = null
     @Volatile var granted: Set<String>? = null

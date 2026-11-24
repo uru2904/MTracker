@@ -92,6 +92,26 @@
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
         </activity-alias>
+        <receiver android:name=".widget.TuDiaWidget" android:exported="false" android:label="Tu día">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_tu_dia_info" />
+        </receiver>
+        <receiver android:name=".widget.SemaforoWidget" android:exported="false" android:label="Semáforo">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_semaforo_info" />
+        </receiver>
+        <receiver android:name=".widget.MacrosWidget" android:exported="false" android:label="Macros">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_macros_info" />
+        </receiver>
+        <receiver android:name=".widget.GymWidget" android:exported="false" android:label="Gym">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_gym_info" />
+        </receiver>
+        <receiver android:name=".widget.RioWidget" android:exported="false" android:label="Objetivo">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_rio_info" />
+        </receiver>
         <receiver android:name=".notify.DailyAlarmReceiver" android:exported="false" />
         <receiver android:name=".notify.RescheduleReceiver" android:exported="false">
             <intent-filter>

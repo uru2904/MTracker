@@ -65,8 +65,8 @@ import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private val sharedUri: MutableState<Uri?> = mutableStateOf(null)
-    /** Se incrementa cuando se toca la notificación diaria: vuelve a Inicio. */
-    private val goHome = mutableStateOf(0)
+    /** Pestaña pedida por una notificación o un widget (con un contador para repetir el mismo pedido). */
+    private val goTo = mutableStateOf<Pair<Int, Tab>?>(null)
     private val notifPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         com.uru2904.mtracker.notify.DailyNotifier.schedule(this)
     }
@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
             var tab by remember { mutableStateOf(Tab.Hoy) }
             androidx.activity.compose.BackHandler(enabled = tab != Tab.Hoy) { tab = Tab.Hoy }
             LaunchedEffect(sharedUri.value) { if (sharedUri.value != null) tab = Tab.Hoy }
-            LaunchedEffect(goHome.value) { if (goHome.value > 0) tab = Tab.Hoy }
+            LaunchedEffect(goTo.value) { goTo.value?.let { tab = it.second } }
             Column(
                 Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding()
             ) {
@@ -142,13 +142,25 @@ class MainActivity : ComponentActivity() {
         } }
     }
 
+    override fun onStop() {
+        super.onStop()
+        // Al salir de la app, los widgets se ponen al día (por ejemplo, el tiempo de pantalla).
+        com.uru2904.mtracker.widget.WidgetUpdater.request(this, 1)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.getBooleanExtra("home", false) == true) { goHome.value++; return }
+        if (intent?.getBooleanExtra("home", false) == true) { goTo.value = ((goTo.value?.first ?: 0) + 1) to Tab.Hoy; return }
+        intent?.getStringExtra("tab")?.let { name ->
+            val t = runCatching { Tab.valueOf(name) }.getOrDefault(Tab.Hoy)
+            if (intent.getBooleanExtra("addMeal", false)) com.uru2904.mtracker.data.Nav.addMeal.intValue++
+            goTo.value = ((goTo.value?.first ?: 0) + 1) to t
+            return
+        }
         if (intent?.action != Intent.ACTION_SEND) return
         val uri = if (Build.VERSION.SDK_INT >= 33) {
             intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
