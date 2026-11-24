@@ -47,8 +47,14 @@ class DayLightsTest {
     @Test fun todoVerdeEsTexto() {
         val all = listOf(Topic("Comida", Light.GREEN), Topic("Gym", Light.GREEN))
         assertEquals("Todo en verde hoy 💪", DayLights.message(all).title)
-        val mixed = listOf(Topic("Comida", Light.GREEN), Topic("Peso", Light.RED, "Peso: 8 días sin pesarte"))
+        val mixed = listOf(Topic("Comida", Light.GREEN), Topic("Peso", Light.RED, "hace 8 días"))
         assertEquals("🟢 Comida  🔴 Peso", DayLights.message(mixed).text)
-        assertEquals("🔴 Peso: 8 días sin pesarte", DayLights.message(mixed).expanded)
+    }
+
+    @Test fun formatos() {
+        assertEquals("4 h 05", DayLights.hm(245))
+        assertEquals("3 h", DayLights.hm(180))
+        assertEquals("45 min", DayLights.hm(45))
+        assertEquals("1.640 / 2.250 kcal · 125 g P", DayLights.food(4, 1640.0, 125.0, 2250, 150).value)
     }
 }

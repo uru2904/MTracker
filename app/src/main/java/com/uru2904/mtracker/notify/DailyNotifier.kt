@@ -127,18 +127,37 @@ object DailyNotifier {
                 com.uru2904.mtracker.sheets.SheetsSync(context, AppDatabase.get(context)).syncSilently(context, HealthRepository(context))
             }
         }
-        val m = DayLights.message(topics(context))
+        val topics = topics(context)
+        val m = DayLights.message(topics)
         val open = PendingIntent.getActivity(context, 1,
             Intent(context, MainActivity::class.java).putExtra("home", true).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val n = NotificationCompat.Builder(context, CHANNEL)
+        val title = if (test) m.title + " (prueba)" else m.title
+        val b = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(if (test) m.title + " (prueba)" else m.title)
+            .setContentTitle(title)
             .setContentText(m.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(if (m.text == m.expanded) m.text else m.text + "\n\n" + m.expanded))
             .setContentIntent(open)
             .setAutoCancel(true)
-            .build()
+        if (m.allGreen) b.setStyle(NotificationCompat.BigTextStyle().bigText(m.text))
+        else {
+            // Expandida: tabla alineada (punto, tema, valor en gris)
+            val big = android.widget.RemoteViews(context.packageName, R.layout.notif_daily)
+            big.setTextViewText(R.id.title, title)
+            val dots = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4)
+            val names = intArrayOf(R.id.name0, R.id.name1, R.id.name2, R.id.name3, R.id.name4)
+            val values = intArrayOf(R.id.value0, R.id.value1, R.id.value2, R.id.value3, R.id.value4)
+            topics.take(5).forEachIndexed { i, t ->
+                big.setImageViewResource(dots[i], when (t.light) {
+                    Light.GREEN -> R.drawable.dot_green; Light.YELLOW -> R.drawable.dot_yellow
+                    Light.RED -> R.drawable.dot_red; Light.NONE -> R.drawable.dot_gray
+                })
+                big.setTextViewText(names[i], t.name)
+                big.setTextViewText(values[i], t.value)
+            }
+            b.setStyle(NotificationCompat.DecoratedCustomViewStyle()).setCustomBigContentView(big)
+        }
+        val n = b.build()
         NotificationManagerCompat.from(context).notify(NOTIF_ID, n)
     }
 }
