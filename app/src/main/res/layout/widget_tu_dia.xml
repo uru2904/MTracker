@@ -10,21 +10,21 @@
         <TextView android:id="@+id/add_meal" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="+ Comida"
             android:textColor="#FFFFFF" android:textSize="13sp" android:background="@drawable/widget_button" android:paddingHorizontal="12dp" android:paddingVertical="6dp" />
     </LinearLayout>
-    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
         <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="kcal" android:textColor="#FFFFFF" android:textSize="14sp" />
         <TextView android:id="@+id/kcal_value" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1.640 / 2.250" android:textColor="#8A8A8A" android:textSize="13sp" />
     </LinearLayout>
     <ProgressBar android:id="@+id/kcal_bar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="7dp"
         android:layout_marginTop="4dp" android:max="100" android:progress="73" android:indeterminate="false" android:progressDrawable="@drawable/widget_progress" />
-    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
         <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Proteína" android:textColor="#FFFFFF" android:textSize="14sp" />
         <TextView android:id="@+id/prot_value" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="125 / 150 g" android:textColor="#8A8A8A" android:textSize="13sp" />
     </LinearLayout>
     <ProgressBar android:id="@+id/prot_bar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="7dp"
         android:layout_marginTop="4dp" android:max="100" android:progress="83" android:indeterminate="false" android:progressDrawable="@drawable/widget_progress" />
-    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
         <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginEnd="8dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
@@ -43,7 +43,7 @@
                 android:layout_marginTop="4dp" android:max="100" android:progress="92" android:indeterminate="false" android:progressDrawable="@drawable/widget_progress" />
         </LinearLayout>
     </LinearLayout>
-    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
     <TextView android:id="@+id/info" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="Sueño 6 h 39 · Gym: toca Full B · Pantalla 2 h 10" android:textColor="#8A8A8A" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" />
 </LinearLayout>
