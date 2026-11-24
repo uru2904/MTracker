@@ -19,6 +19,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.uru2904.mtracker.data.MeasurementEntry
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
 import com.uru2904.mtracker.data.MeasurementType
 import com.uru2904.mtracker.sheets.SheetsSync
 import java.time.LocalDate
@@ -175,6 +181,7 @@ fun ScaleScreen(db: AppDatabase) {
     val measures by com.uru2904.mtracker.data.Live.measures(db).collectAsState()
     val goal by com.uru2904.mtracker.data.Live.goal(db, LocalDate.now().toString()).collectAsState()
     var selectedType by remember { mutableStateOf<Long?>(null) } // null = peso
+    var editing by remember { mutableStateOf<MeasurementEntry?>(null) }
     var addMeasures by remember { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
     val es = Locale("es", "AR")
@@ -257,6 +264,25 @@ fun ScaleScreen(db: AppDatabase) {
                             Text("${if (it > 0) "+" else ""}${num(it)}", color = Muted, fontSize = Type.Small, modifier = Modifier.padding(end = 12.dp))
                         }
                         Text(value, color = if (sel) AccentLight else if (value == "Sin cargar") Muted else Color.White, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+            // ---- Historial de la medida elegida: tocar para editar o borrar ----
+            types.firstOrNull { it.id == selectedType }?.let { t ->
+                val hist = measures.filter { it.typeId == t.id }.sortedByDescending { it.date }
+                if (hist.isNotEmpty()) {
+                    Text("Historial de ${t.name.lowercase()} · tocá una para editarla", color = Muted, fontSize = Type.Small)
+                    Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
+                        hist.forEachIndexed { i, m ->
+                            if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Track))
+                            Row(
+                                Modifier.fillMaxWidth().clickable { editing = m }.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(DateTimeFormatter.ofPattern("EEE d/M/yyyy", es).format(LocalDate.parse(m.date)), color = Color.White, fontSize = Type.Body, modifier = Modifier.weight(1f))
+                                Text("${num(m.cm)} cm", color = Color.White, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     }
                 }
             }
@@ -349,6 +375,9 @@ fun ScaleScreen(db: AppDatabase) {
     }
 
     if (addMeasures) MeasuresDialog(db, types) { addMeasures = false }
+    editing?.let { m ->
+        types.firstOrNull { it.id == m.typeId }?.let { t -> EditMeasureDialog(db, t, m) { editing = null } }
+    }
 
     weighed?.let { w -> WeighInDialog(db, w) { weighed = null } }
     detail?.let { w -> WeightDetailDialog(db, w) { detail = null } }
@@ -490,4 +519,63 @@ private fun MeasuresDialog(db: AppDatabase, types: List<MeasurementType>, onClos
             }
         }
     }
+}
+
+/** Editar o borrar una medida ya cargada. */
+@Composable
+private fun EditMeasureDialog(db: AppDatabase, t: MeasurementType, m: MeasurementEntry, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val snack = LocalSnack.current
+    var value by remember { mutableStateOf(num(m.cm)) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val app = context.applicationContext
+    fun syncLater() = AppScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching { SheetsSync(app, db).syncSilently(app, HealthRepository(app)) }
+    }
+    AlertDialog(
+        onDismissRequest = onClose,
+        containerColor = Card,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${t.name} · " + DateTimeFormatter.ofPattern("d/M/yyyy").format(LocalDate.parse(m.date)), color = Color.White, modifier = Modifier.weight(1f))
+                IconButton(onClick = { confirmDelete = true }) {
+                    Icon(Icons.Outlined.Delete, contentDescription = "Borrar medida", tint = Danger)
+                }
+            }
+        },
+        text = { MeasureField(t, value, { value = it }, Modifier.fillMaxWidth()) },
+        confirmButton = {
+            val cm = parseCm(value)
+            TextButton(enabled = cm != null, onClick = {
+                AppScope.launch {
+                    runCatching { db.measurements().update(m.copy(cm = cm!!)) }
+                        .onSuccess { snack.say("Medida actualizada"); syncLater() }
+                        .onFailure { snack.say("No se pudo guardar: ${it.message}") }
+                }
+                onClose()
+            }) { Text("Guardar", color = if (cm != null) AccentLight else Muted) }
+        },
+        dismissButton = { TextButton(onClick = onClose) { Text("Cancelar", color = Muted) } },
+    )
+    if (confirmDelete) ConfirmDialog(
+        title = "¿Borrar esta medida?",
+        text = "${t.name} del ${DateTimeFormatter.ofPattern("d/M/yyyy").format(LocalDate.parse(m.date))}: ${num(m.cm)} cm. También se borra de la planilla.",
+        confirmLabel = "Borrar",
+        onConfirm = {
+            confirmDelete = false
+            AppScope.launch {
+                runCatching {
+                    com.uru2904.mtracker.sheets.MeasureDeletes.add(app, m.typeId, m.date)
+                    db.measurements().delete(m)
+                }.onSuccess {
+                    snack.undoable("Medida borrada", undo = {
+                        com.uru2904.mtracker.sheets.MeasureDeletes.remove(app, m.typeId, m.date)
+                        db.measurements().insert(m.copy(id = 0))
+                    }, commit = { syncLater() })
+                }.onFailure { snack.say("No se pudo borrar: ${it.message}") }
+            }
+            onClose()
+        },
+        onDismiss = { confirmDelete = false },
+    )
 }

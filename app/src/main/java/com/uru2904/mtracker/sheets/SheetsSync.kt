@@ -124,6 +124,8 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
         if (rows.isNotEmpty()) {
             val header = rows.first()
             val existing = db.measurements().all().map { it.typeId to it.date }.toSet()
+            // Las que se borraron en la app no se vuelven a traer de la planilla.
+            val deleted = MeasureDeletes.all(context)
             val toAdd = mutableListOf<com.uru2904.mtracker.data.MeasurementEntry>()
             rows.drop(1).forEach { r ->
                 val date = SheetMealParser.parseDate(r.getOrNull(0).orEmpty())?.toString() ?: return@forEach
@@ -131,7 +133,7 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
                     if (i == 0) return@forEachIndexed
                     val t = types.firstOrNull { h.trim().lowercase().startsWith(it.name.lowercase()) } ?: return@forEachIndexed
                     val v = r.getOrNull(i)?.replace(',', '.')?.toDoubleOrNull() ?: return@forEachIndexed
-                    if ((t.id to date) !in existing) toAdd += com.uru2904.mtracker.data.MeasurementEntry(typeId = t.id, date = date, cm = v)
+                    if ((t.id to date) !in existing && MeasureDeletes.key(t.id, date) !in deleted) toAdd += com.uru2904.mtracker.data.MeasurementEntry(typeId = t.id, date = date, cm = v)
                 }
             }
             if (toAdd.isNotEmpty()) db.measurements().insertAll(toAdd)
@@ -491,4 +493,15 @@ class SheetsSync(private val context: Context, private val db: AppDatabase) {
     companion object {
         private val lock = Mutex()
     }
+}
+
+/** Medidas borradas en la app (tipo + fecha), para que la sincronización no las vuelva a traer. */
+object MeasureDeletes {
+    fun key(typeId: Long, date: String) = "$typeId|$date"
+    private fun prefs(c: Context) = c.getSharedPreferences("sheets", Context.MODE_PRIVATE)
+    fun all(c: Context): Set<String> = prefs(c).getStringSet("medidasBorradas", emptySet()) ?: emptySet()
+    fun add(c: Context, typeId: Long, date: String) =
+        prefs(c).edit().putStringSet("medidasBorradas", all(c) + key(typeId, date)).apply()
+    fun remove(c: Context, typeId: Long, date: String) =
+        prefs(c).edit().putStringSet("medidasBorradas", all(c) - key(typeId, date)).apply()
 }

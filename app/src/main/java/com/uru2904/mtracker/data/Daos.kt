@@ -146,6 +146,8 @@ interface MeasurementDao {
     @Insert suspend fun insertType(t: MeasurementType): Long
     @Update suspend fun updateType(t: MeasurementType)
     @Insert suspend fun insert(m: MeasurementEntry): Long
+    @Update suspend fun update(m: MeasurementEntry)
+    @Delete suspend fun delete(m: MeasurementEntry)
 
     @Query("SELECT * FROM measurement_type WHERE active = 1 ORDER BY sortOrder")
     fun activeTypes(): Flow<List<MeasurementType>>
