@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -84,6 +85,7 @@ import java.util.Locale
  * muestra el peso en vivo y lo guarda solo cuando se estabiliza (en la app y en Health Connect).
  * Pantalla de prueba de la fase 0; la pantalla Cuerpo definitiva se diseña después.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ScaleScreen(db: AppDatabase) {
     val context = LocalContext.current
@@ -347,48 +349,52 @@ fun ScaleScreen(db: AppDatabase) {
         }
     }
 
-    // ---- Hoja de pesaje ----
-    if (weighing) Dialog(onDismissRequest = { weighing = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    // ---- Hoja de pesaje (desde abajo) ----
+    if (weighing) androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = { weighing = false },
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color(0xFF141414),
+    ) {
         Column(
-            Modifier.fillMaxSize().background(Color.Black).navigationBarsPadding().padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp).padding(bottom = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ScreenHeader("Pesarse", onBack = { weighing = false })
-            Spacer(Modifier.height(20.dp))
+            val stable = live?.stabilized == true && live?.removed != true
+            ScaleRing(listening = scanning && !stable, stable = stable)
             Text(
-                live?.let { "${num(it.kg)} kg" } ?: "– – kg",
-                color = if (live?.stabilized == true) Color.White else Soft,
-                fontSize = Type.Hero, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally),
+                live?.takeIf { !it.removed }?.let { "${num(it.kg)} kg" } ?: "– – kg",
+                color = if (stable) Color.White else Soft, fontSize = Type.Hero, fontWeight = FontWeight.Bold,
             )
             Text(
                 when {
                     scanError != null -> scanError!!
-                    locked -> "Ya te pesaste hoy a las " + DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(lockUntil - 3 * 3_600_000L).atZone(zone)) + "."
-                    scanning -> status + " · escuchando" + ".".repeat(dots)
-                    else -> status
+                    locked && pending == null -> "Ya te pesaste hoy a las " +
+                        DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(lockUntil - 3 * 3_600_000L).atZone(zone))
+                    pending != null -> "¿Guardar esta pesada?"
+                    live == null || live?.removed == true -> "Subite a la balanza"
+                    else -> "Midiendo…"
                 },
                 color = if (scanError != null) Warn else Muted, fontSize = Type.Body,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
             )
-            Text("Reiniciar Bluetooth", color = AccentLight, fontSize = Type.Body,
-                modifier = Modifier.align(Alignment.CenterHorizontally).minimumInteractiveComponentSize().clickable { launcher.launch(perms) }.padding(8.dp))
-            pending?.let { r ->
-                Text("¿Guardar ${num(r.kg)} kg?", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.align(Alignment.CenterHorizontally))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { dismissedKg = r.kg; pending = null; status = "Descartado" },
+            val r = pending
+            when {
+                r != null -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = { dismissedKg = r.kg; pending = null },
                         colors = ButtonDefaults.buttonColors(containerColor = Surface2), modifier = Modifier.weight(1f).height(52.dp)) { Text("Descartar", color = Color.White) }
                     Button(onClick = { confirm(r) },
                         colors = ButtonDefaults.buttonColors(containerColor = Accent), modifier = Modifier.weight(1f).height(52.dp)) { Text("Guardar", color = Color.White) }
                 }
+                locked -> Button(
+                    onClick = { lockUntil = 0L; prefs.edit().putLong("lock_until", 0L).apply(); dismissedKg = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = Surface2), modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) { Text("Pesarme de nuevo", color = Color.White) }
+                else -> Button(
+                    onClick = { launcher.launch(perms) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Surface2), modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) { Text("Reiniciar Bluetooth", color = Color.White) }
             }
-            if (locked && pending == null) Button(
-                onClick = { lockUntil = 0L; prefs.edit().putLong("lock_until", 0L).apply(); dismissedKg = null },
-                colors = ButtonDefaults.buttonColors(containerColor = Surface2), modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) { Text("Pesarme de nuevo", color = Color.White) }
-            Spacer(Modifier.weight(1f))
-            Text("Subite descalzo, quieto, hasta que el número se quede fijo. Mejor al despertar, después del baño.",
-                color = Muted, fontSize = Type.Small, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text("Descalzo y quieto, al despertar", color = Muted, fontSize = Type.Small)
         }
     }
 
@@ -728,5 +734,25 @@ private fun WeightChart(
                 drawCircle(Color.Black, 9f, Offset(sx, sy)); drawCircle(Color.White, 7f, Offset(sx, sy))
             }
         }
+    }
+}
+
+/** Anillo de la balanza: late mientras escucha y se completa cuando el peso queda fijo. */
+@Composable
+private fun ScaleRing(listening: Boolean, stable: Boolean) {
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulso")
+    val a by pulse.animateFloat(
+        initialValue = 0.25f, targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(900), androidx.compose.animation.core.RepeatMode.Reverse,
+        ), label = "alfa",
+    )
+    Canvas(Modifier.size(96.dp)) {
+        val w = 8.dp.toPx()
+        drawCircle(Track, radius = size.minDimension / 2 - w, style = Stroke(width = w / 2))
+        drawCircle(
+            if (stable) Accent else AccentLight.copy(alpha = if (listening) a else 0.3f),
+            radius = size.minDimension / 2 - w / 2, style = Stroke(width = w),
+        )
     }
 }
