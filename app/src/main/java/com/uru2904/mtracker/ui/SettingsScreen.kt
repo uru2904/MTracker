@@ -97,7 +97,8 @@ fun SettingsScreen(db: AppDatabase, onBack: () -> Unit) {
     var limit by remember { mutableStateOf(AppSettings.screenLimitMin) }
     var editor by remember { mutableStateOf<Editor?>(null) }
 
-    fun saveShifts(c: ShiftConfig) { AppSettings.shifts = c; shifts = c }
+    val appCtx = androidx.compose.ui.platform.LocalContext.current
+    fun saveShifts(c: ShiftConfig) { AppSettings.shifts = c; shifts = c; com.uru2904.mtracker.notify.DailyNotifier.schedule(appCtx) }
     fun saveGoal(f: (GoalPeriod) -> GoalPeriod) {
         val g = goal ?: return
         scope.launch {
@@ -181,6 +182,26 @@ fun SettingsScreen(db: AppDatabase, onBack: () -> Unit) {
                     editor = Editor.Number("Límite diario de pantalla", limit / 60.0, "horas", true, 0.5, 12.0) { v ->
                         AppSettings.screenLimitMin = Math.round(v * 60); limit = AppSettings.screenLimitMin
                     }
+                }
+            }
+            Section("Notificación diaria") {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                var on by remember { mutableStateOf(AppSettings.dailyNotify) }
+                var offset by remember { mutableStateOf(AppSettings.notifyOffsetMin) }
+                Item("Semáforo del día", if (on) "Activada" else "Apagada",
+                    sub = "Comida, gym, sueño, peso y pantalla") {
+                    on = !on; AppSettings.dailyNotify = on; com.uru2904.mtracker.notify.DailyNotifier.schedule(ctx)
+                }
+                if (on) {
+                    val next = remember(offset, shifts) { com.uru2904.mtracker.notify.DailyNotifier.nextFire() }
+                    Item("Anticipación", "${num(offset / 60.0)} h antes",
+                        sub = "Del cambio de día. Próxima: " + next.format(java.time.format.DateTimeFormatter.ofPattern("EEE d/M HH:mm", java.util.Locale("es", "AR")))) {
+                        editor = Editor.Number("Horas antes del cambio de día", offset / 60.0, "horas", true, 0.0, 12.0) { v ->
+                            AppSettings.notifyOffsetMin = Math.round(v * 60); offset = AppSettings.notifyOffsetMin
+                            com.uru2904.mtracker.notify.DailyNotifier.schedule(ctx)
+                        }
+                    }
+                    Item("Probar ahora", "", sub = "Manda el semáforo de hoy") { com.uru2904.mtracker.notify.DailyNotifier.runNow(ctx, test = true) }
                 }
             }
             Section("Claude") {

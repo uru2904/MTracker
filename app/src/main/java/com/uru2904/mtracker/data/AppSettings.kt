@@ -31,6 +31,20 @@ object AppSettings {
         get() = prefs?.getLong("screenLimit", 180L) ?: 180L
         set(v) = edit { putLong("screenLimit", v) }
 
+    /** Notificación diaria (semáforo). */
+    var dailyNotify: Boolean
+        get() = prefs?.getBoolean("dailyNotify", true) ?: true
+        set(v) = edit { putBoolean("dailyNotify", v) }
+
+    /** Cuántos minutos antes del cambio de día llega la notificación. */
+    var notifyOffsetMin: Long
+        get() = prefs?.getLong("notifyOffset", 120L) ?: 120L
+        set(v) = edit { putLong("notifyOffset", v) }
+
+    var lastNotifiedDay: String?
+        get() = prefs?.getString("lastNotified", null)
+        set(v) = edit { putString("lastNotified", v) }
+
     /** Chat de Claude donde se cargan las comidas (botón "Con Claude" en Comidas). */
     const val DEFAULT_CHAT = "https://claude.ai/code/session_01631xpURwXTUBxVKfJa3Yd6"
     var claudeChatUrl: String

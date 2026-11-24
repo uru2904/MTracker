@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- MTracker: una "M" blanca cuyo trazo central (azul) baja y sube como una línea de progreso. -->
+<!-- MTracker (monocromo): mancuerna y un pulso blanco como manija (gym + salud). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:pathData="M33,72 L33,38 M75,38 L75,72" android:strokeColor="#FFFFFF"
-        android:strokeWidth="8" android:strokeLineCap="round" android:fillColor="#00000000" />
-    <path android:pathData="M33,38 L54,61 L75,38" android:strokeColor="#FFFFFF"
-        android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" />
+    <path android:pathData="M31,48.6 L31,59.4 M77,48.6 L77,59.4" android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.9" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M39.15,44.55 L39.15,63.45 M68.85,44.55 L68.85,63.45" android:strokeColor="#FFFFFF"
+        android:strokeWidth="6.1" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M43.2,54 L47.25,54 L51.3,45.9 L56.7,62.1 L60.75,54 L64.8,54" android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" />
 </vector>

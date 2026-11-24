@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono chico de notificación: la mancuerna con pulso, en blanco. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M2.5,10 L2.5,14 M21.5,10 L21.5,14" android:strokeColor="#FFFFFF"
+        android:strokeWidth="2" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M5.9,8.2 L5.9,15.8 M18.1,8.2 L18.1,15.8" android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.4" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M7.6,12 L9.3,12 L11,8.6 L13,15.4 L14.7,12 L16.4,12" android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" />
+</vector>

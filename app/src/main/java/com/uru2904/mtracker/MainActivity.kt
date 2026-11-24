@@ -65,6 +65,11 @@ import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private val sharedUri: MutableState<Uri?> = mutableStateOf(null)
+    /** Se incrementa cuando se toca la notificación diaria: vuelve a Inicio. */
+    private val goHome = mutableStateOf(0)
+    private val notifPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        com.uru2904.mtracker.notify.DailyNotifier.schedule(this)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +78,9 @@ class MainActivity : ComponentActivity() {
         val db = AppDatabase.get(this)
         handleIntent(intent)
         com.uru2904.mtracker.sync.SyncWorker.schedule(this)
+        com.uru2904.mtracker.notify.DailyNotifier.schedule(this)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         com.uru2904.mtracker.data.Live.warmUp(db, com.uru2904.mtracker.data.AppSettings.calendar().logicalDate(java.time.LocalDateTime.now()).toString())
         lifecycleScope.launch {
             FoodSeed.ensure(db)
@@ -94,6 +102,7 @@ class MainActivity : ComponentActivity() {
             var tab by remember { mutableStateOf(Tab.Hoy) }
             androidx.activity.compose.BackHandler(enabled = tab != Tab.Hoy) { tab = Tab.Hoy }
             LaunchedEffect(sharedUri.value) { if (sharedUri.value != null) tab = Tab.Hoy }
+            LaunchedEffect(goHome.value) { if (goHome.value > 0) tab = Tab.Hoy }
             Column(
                 Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding()
             ) {
@@ -139,6 +148,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra("home", false) == true) { goHome.value++; return }
         if (intent?.action != Intent.ACTION_SEND) return
         val uri = if (Build.VERSION.SDK_INT >= 33) {
             intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
