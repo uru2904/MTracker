@@ -131,7 +131,7 @@ object WidgetUpdater {
 
     /** Dato corto debajo de cada tema del semáforo. */
     private fun short(t: Topic, d: WidgetData): String = when (t.name) {
-        "Comida" -> "${n(d.kcal)} kcal"
+        "Comida" -> "${n(d.prot)}/${d.protT} g"
         "Gym" -> when (val s = d.gymDaysSince) { null -> "sin datos"; 0L -> "hoy"; 1L -> "ayer"; else -> "hace $s d" }
         "Peso" -> t.value.replace(" días", " d").replace(" día", " d")
         else -> t.value.substringBefore(" /")
@@ -175,7 +175,8 @@ object WidgetUpdater {
         val names = intArrayOf(R.id.name0, R.id.name1, R.id.name2, R.id.name3, R.id.name4)
         val vals = intArrayOf(R.id.val0, R.id.val1, R.id.val2, R.id.val3, R.id.val4)
         d.topics.take(5).forEachIndexed { i, t ->
-            setImageViewResource(dots[i], dotRes(t.light)); setTextViewText(names[i], t.name)
+            setImageViewResource(dots[i], dotRes(t.light))
+            setTextViewText(names[i], if (t.name == "Comida") "Proteínas" else t.name)
             setTextViewText(vals[i], short(t, d))
         }
         setOnClickPendingIntent(R.id.root, open(c, 20, "Hoy"))
