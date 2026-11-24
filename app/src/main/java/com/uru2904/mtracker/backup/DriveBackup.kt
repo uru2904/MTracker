@@ -7,7 +7,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.uru2904.mtracker.data.AppDatabase
@@ -54,10 +53,12 @@ object DriveBackup {
     /** Hubo un cambio en la base: copia en 5 minutos (los cambios seguidos se juntan en una sola copia). */
     fun onChange(c: Context) {
         val ctx = c.applicationContext
-        prefs(ctx).edit().putLong("dirty", System.currentTimeMillis()).apply()
+        val now = System.currentTimeMillis()
+        val p = prefs(ctx)
+        // Ya hay una copia programada que va a incluir este cambio.
+        if (now < p.getLong("scheduledAt", 0)) return
+        p.edit().putLong("scheduledAt", now + TimeUnit.MINUTES.toMillis(5)).apply()
         val wm = WorkManager.getInstance(ctx)
-        val pending = runCatching { wm.getWorkInfosForUniqueWork("backup").get() }.getOrDefault(emptyList())
-        if (pending.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }) return
         val req = OneTimeWorkRequestBuilder<BackupWorker>()
             .setInitialDelay(5, TimeUnit.MINUTES)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
