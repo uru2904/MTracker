@@ -223,32 +223,26 @@ fun ScaleScreen(db: AppDatabase) {
                 Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text("Peso tendencia", color = Muted, fontSize = Type.Small)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                    Text(trend.lastOrNull()?.let { "${num(Math.round(it.second * 10) / 10.0)} kg" } ?: "– kg",
-                        color = Color.White, fontSize = Type.Number, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    last?.let {
-                        val d = Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate()
-                        Text("balanza ${dayLabel(d).lowercase()} ${num(it.kg)}", color = Muted, fontSize = Type.Small, modifier = Modifier.padding(bottom = 6.dp))
-                    }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Peso tendencia", color = Muted, fontSize = Type.Small, modifier = Modifier.weight(1f))
+                    if (weights90.isNotEmpty()) Text("Historial ›", color = AccentLight, fontSize = Type.Body,
+                        modifier = Modifier.minimumInteractiveComponentSize().clickable { allWeighIns = true }.padding(4.dp))
                 }
-                if (rate != null) {
-                    val ok = rate in (goalRate - 0.3)..(goalRate + 0.2)
-                    Row {
-                        Text("${if (rate > 0) "+" else ""}${num(Math.round(rate * 100) / 100.0)} kg/sem", color = if (ok) Ok else Warn, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
-                        Text(" · objetivo ${num(goalRate)} kg/sem", color = Muted, fontSize = Type.Body)
+                Text(trend.lastOrNull()?.let { "${num(Math.round(it.second * 10) / 10.0)} kg" } ?: "– kg",
+                    color = Color.White, fontSize = Type.Number, fontWeight = FontWeight.Bold)
+                val projKg = if (rate != null && goalEnd != null && trend.isNotEmpty())
+                    com.uru2904.mtracker.domain.WeightTrend.projection(trend.last(), rate, goalEnd) else null
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    @Composable fun Stat(label: String, value: String, color: Color, m: Modifier) = Column(m) {
+                        Text(label, color = Muted, fontSize = Type.Small)
+                        Text(value, color = color, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
                     }
-                    if (goalEnd != null && trend.isNotEmpty()) {
-                        val proj = com.uru2904.mtracker.domain.WeightTrend.projection(trend.last(), rate, goalEnd)
-                        val name = goal?.name ?: "Objetivo"
-                        val good = target == null || proj <= target + 0.3
-                        Row {
-                            Text("$name ${goalEnd.dayOfMonth}/${goalEnd.monthValue}: llegás a ", color = Muted, fontSize = Type.Body)
-                            Text("${num(Math.round(proj * 10) / 10.0)} kg", color = if (good) Ok else Warn, fontSize = Type.Body, fontWeight = FontWeight.SemiBold)
-                            target?.let { Text(" · meta ${num(it)}", color = Muted, fontSize = Type.Body) }
-                        }
-                    }
-                } else Text("Pesate al menos 2 veces en 20 días para ver el ritmo y la proyección.", color = Muted, fontSize = Type.Small)
+                    Stat("Ritmo", rate?.let { "${if (it > 0) "+" else ""}${num(Math.round(it * 10) / 10.0)}/sem" } ?: "–",
+                        if (rate == null) Muted else if (rate in (goalRate - 0.3)..(goalRate + 0.2)) Ok else Warn, Modifier.weight(1f))
+                    if (goalEnd != null) Stat("${goalEnd.dayOfMonth}/${goalEnd.monthValue}", projKg?.let { "${num(Math.round(it * 10) / 10.0)} kg" } ?: "–",
+                        if (projKg == null) Muted else if (target == null || projKg <= target + 0.3) Ok else Warn, Modifier.weight(1f))
+                    if (target != null) Stat("Meta", "${num(target)} kg", Color.White, Modifier.weight(1f))
+                }
 
                 // Rango y gráfico
                 val dayMs = 86_400_000L
@@ -258,7 +252,7 @@ fun ScaleScreen(db: AppDatabase) {
                 val off = if (rangeDays == 0) 0f else offsetDays.coerceIn(0f, maxOffset)
                 val winTo = endOfToday - (off * dayMs).toLong()
                 val winFrom = if (rangeDays == 0) firstT ?: (endOfToday - 60 * dayMs) else winTo - rangeDays * dayMs
-                val showProj = off < 0.5f && goalEnd != null && rate != null && trend.isNotEmpty()
+                val showProj = false
                 val axisTo = if (showProj) goalEnd!!.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() else winTo
                 val ms = { d: LocalDate -> d.atTime(12, 0).atZone(zone).toInstant().toEpochMilli() }
                 val scale = weights90.filter { it.timestamp in winFrom..winTo }.map { it.timestamp to it.kg }
@@ -266,19 +260,19 @@ fun ScaleScreen(db: AppDatabase) {
                 val proj = if (showProj) listOf(ms(trend.last().first) to trend.last().second,
                     ms(goalEnd!!) to com.uru2904.mtracker.domain.WeightTrend.projection(trend.last(), rate!!, goalEnd)) else emptyList()
 
-                Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f).height(32.dp).background(Surface2, RoundedCornerShape(10.dp)).padding(3.dp)) {
                         listOf(30 to "30 d", 60 to "60 d", 91 to "3 m", 182 to "6 m", 0 to "Todo").forEach { (d, label) ->
                             val on = rangeDays == d
                             Box(
-                                Modifier.background(if (on) Accent else Surface2, RoundedCornerShape(14.dp))
-                                    .clickable { rangeDays = d; offsetDays = 0f; AppSettings.chartRangeDays = d }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                Modifier.weight(1f).fillMaxHeight().background(if (on) Accent else Color.Transparent, RoundedCornerShape(8.dp))
+                                    .clickable { rangeDays = d; offsetDays = 0f; AppSettings.chartRangeDays = d },
+                                contentAlignment = Alignment.Center,
                             ) { Text(label, color = if (on) Color.White else Soft, fontSize = Type.Small) }
                         }
                     }
                     if (off > 0.5f) Text("Hoy", color = AccentLight, fontSize = Type.Small,
-                        modifier = Modifier.minimumInteractiveComponentSize().clickable { offsetDays = 0f }.padding(4.dp))
+                        modifier = Modifier.minimumInteractiveComponentSize().clickable { offsetDays = 0f }.padding(start = 8.dp))
                 }
                 Box(
                     Modifier.fillMaxWidth().pointerInput(rangeDays, maxOffset) {
@@ -296,11 +290,8 @@ fun ScaleScreen(db: AppDatabase) {
                 Row(Modifier.fillMaxWidth().padding(start = 34.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     val f = DateTimeFormatter.ofPattern("d/M/yy")
                     Text(f.format(Instant.ofEpochMilli(winFrom).atZone(zone)), color = Muted, fontSize = Type.Chart)
-                    if (rangeDays != 0 && maxOffset > 0f && off < 0.5f) Text("← deslizá para ver antes", color = Muted, fontSize = Type.Chart)
                     Text(if (showProj) "${goalEnd!!.dayOfMonth}/${goalEnd.monthValue}" else if (off < 0.5f) "hoy" else f.format(Instant.ofEpochMilli(winTo - 1).atZone(zone)), color = Muted, fontSize = Type.Chart)
                 }
-                Text("Línea: tendencia · puntos: balanza" + (if (showProj) " · punteado: proyección" else "") + (if (target != null) " · gris: meta" else ""),
-                    color = Muted, fontSize = Type.Chart)
             }
 
             // ---- Medidas: grilla de tarjetas ----
@@ -310,7 +301,12 @@ fun ScaleScreen(db: AppDatabase) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Medidas", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("Medidas", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        lastMeasure?.plusDays(14)?.let { if (!it.isAfter(today)) "  · toca medir" else "  · próximas ${it.dayOfMonth}/${it.monthValue}" } ?: "",
+                        color = if (lastMeasure != null && !lastMeasure.plusDays(14).isAfter(today)) Warn else Muted,
+                        fontSize = Type.Small, modifier = Modifier.weight(1f),
+                    )
                     Text("+ Cargar", color = AccentLight, fontSize = Type.Body,
                         modifier = Modifier.minimumInteractiveComponentSize().clickable { addMeasures = true }.padding(4.dp))
                 }
@@ -341,27 +337,9 @@ fun ScaleScreen(db: AppDatabase) {
                         if (pair.size == 1) Box(Modifier.weight(1f))
                     }
                 }
-                Text(
-                    when (lastMeasure) {
-                        null -> "Todavía no cargaste medidas. Tocá + Cargar."
-                        else -> "Últimas: ${lastMeasure.dayOfMonth}/${lastMeasure.monthValue} · próximas: " +
-                            lastMeasure.plusDays(14).let { if (!it.isAfter(today)) "ya toca" else "${it.dayOfMonth}/${it.monthValue}" } +
-                            " · tocá una para ver gráfico, historial y editar"
-                    },
-                    color = Muted, fontSize = Type.Small,
-                )
+                if (lastMeasure == null) Text("Todavía no cargaste medidas.", color = Muted, fontSize = Type.Small)
             }
 
-            // ---- Pesadas: las últimas 2 y "ver todas" ----
-            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
-                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Pesadas", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    if (recent.size > 2) Text("Ver todas ›", color = AccentLight, fontSize = Type.Body,
-                        modifier = Modifier.minimumInteractiveComponentSize().clickable { allWeighIns = true }.padding(8.dp))
-                }
-                WeighInRows(recent.reversed().take(2), fatByWeight, onOpen = { detail = it }, onDelete = { toDelete = it })
-                if (recent.isEmpty()) Text("Todavía no hay pesadas. Tocá Pesarse y subite a la balanza.", color = Muted, fontSize = Type.Body, modifier = Modifier.padding(16.dp))
-            }
         }
     }
 
@@ -413,9 +391,8 @@ fun ScaleScreen(db: AppDatabase) {
     // ---- Todas las pesadas ----
     if (allWeighIns) Dialog(onDismissRequest = { allWeighIns = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(Color.Black)) {
-            ScreenHeader("Pesadas", onBack = { allWeighIns = false })
+            ScreenHeader("Historial de peso", onBack = { allWeighIns = false })
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 20.dp)) {
-                Text("Deslizá una para borrarla · tocá para ver el detalle", color = Muted, fontSize = Type.Small, modifier = Modifier.padding(bottom = 8.dp))
                 Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp))) {
                     WeighInRows(weights90.reversed(), fatByWeight, onOpen = { detail = it }, onDelete = { toDelete = it })
                 }
