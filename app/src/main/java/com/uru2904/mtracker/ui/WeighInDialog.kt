@@ -72,6 +72,7 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
     val context = LocalContext.current
+    val snack = LocalSnack.current
     val scope = rememberCoroutineScope()
     val health = remember { HealthRepository(context) }
     val sync = remember { SheetsSync(context, db) }
@@ -162,31 +163,11 @@ fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
                     ) {
                         Text("Tocan las medidas con cinta", color = Color.White, fontSize = Type.Large, fontWeight = FontWeight.SemiBold)
                         Text(
-                            (lastDate?.let { "Última: $it. " } ?: "") + "Cinta firme sin apretar, relajado, a la misma altura que la vez anterior.",
+                            (lastDate?.let { "Última: $it. " } ?: "") + "Cinta firme sin apretar, relajado, a la misma altura que la vez anterior. Tocá ? para ver cómo medir cada una.",
                             color = Muted, fontSize = Type.Small,
                         )
-                        types.chunked(2).forEach { pair ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                pair.forEach { t ->
-                                    OutlinedTextField(
-                                        value = values[t.id] ?: "",
-                                        onValueChange = { values[t.id] = it },
-                                        label = { Text(t.name) },
-                                        suffix = { Text("cm", color = Muted) },
-                                        singleLine = true,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                                            focusedBorderColor = AccentLight, unfocusedBorderColor = Muted,
-                                            focusedLabelColor = AccentLight, unfocusedLabelColor = Muted, cursorColor = Color.White,
-                                        ),
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                }
-                                if (pair.size == 1) Box(Modifier.weight(1f))
-                            }
-                        }
-                        val filled = values.filterValues { it.replace(',', '.').toDoubleOrNull() != null }
+                        types.forEach { t -> MeasureField(t, values[t.id] ?: "", { values[t.id] = it }, Modifier.fillMaxWidth()) }
+                        val filled = values.mapNotNull { (id, v) -> parseCm(v)?.let { id to it } }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(
                                 onClick = { measuresSkipped = true },
@@ -197,12 +178,15 @@ fun WeighInDialog(db: AppDatabase, weight: WeightEntry, onClose: () -> Unit) {
                                 onClick = {
                                     val today = LocalDate.now().toString()
                                     scope.launch {
-                                        db.measurements().insertAll(filled.map { (typeId, v) ->
-                                            MeasurementEntry(typeId = typeId, date = today, cm = v.replace(',', '.').toDouble())
-                                        })
-                                        measuresSaved = true
-                                        (context as? Activity)?.let { sync.syncSilently(it, health) }
+                                        val ok = runCatching {
+                                            db.measurements().insertAll(filled.map { (typeId, cm) -> MeasurementEntry(typeId = typeId, date = today, cm = cm) })
+                                        }
+                                        if (ok.isSuccess) measuresSaved = true
+                                        else snack.say("No se pudieron guardar: ${ok.exceptionOrNull()?.message}")
                                     }
+                                    // La planilla se actualiza por detrás, sin trabar la pantalla.
+                                    val app = context.applicationContext
+                                    AppScope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { sync.syncSilently(app, health) } }
                                 },
                                 enabled = filled.isNotEmpty(),
                                 colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Track),

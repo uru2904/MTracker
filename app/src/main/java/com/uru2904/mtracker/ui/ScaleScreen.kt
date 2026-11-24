@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -450,32 +451,18 @@ private fun LineChart(points: List<Pair<Long, Double>>, target: Double?, unit: S
 @Composable
 private fun MeasuresDialog(db: AppDatabase, types: List<MeasurementType>, onClose: () -> Unit) {
     val context = LocalContext.current
+    val snack = LocalSnack.current
     val scope = rememberCoroutineScope()
     val values = remember { mutableStateMapOf<Long, String>() }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(20.dp),
+            Modifier.fillMaxSize().background(Color.Black).imePadding().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Cargar medidas", color = Color.White, fontSize = Type.Headline, fontWeight = FontWeight.Bold)
-            Text("Cinta firme sin apretar, relajado, a la misma altura que la vez anterior. Dejá vacías las que no midas.", color = Muted, fontSize = Type.Small)
-            types.forEach { t ->
-                OutlinedTextField(
-                    value = values[t.id] ?: "",
-                    onValueChange = { values[t.id] = it },
-                    label = { Text(t.name) },
-                    suffix = { Text("cm", color = Muted) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                        focusedBorderColor = AccentLight, unfocusedBorderColor = Muted,
-                        focusedLabelColor = AccentLight, unfocusedLabelColor = Muted, cursorColor = Color.White,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            val filled = values.filterValues { it.replace(',', '.').toDoubleOrNull() != null }
+            Text("Cinta firme sin apretar, relajado, a la misma altura que la vez anterior. Dejá vacías las que no midas. Tocá ? para ver cómo medir cada una.", color = Muted, fontSize = Type.Small)
+            types.forEach { t -> MeasureField(t, values[t.id] ?: "", { values[t.id] = it }, Modifier.fillMaxWidth()) }
+            val filled = values.mapNotNull { (id, v) -> parseCm(v)?.let { id to it } }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = Card), modifier = Modifier.weight(1f).height(52.dp)) {
                     Text("Cancelar", color = Color.White)
@@ -483,11 +470,18 @@ private fun MeasuresDialog(db: AppDatabase, types: List<MeasurementType>, onClos
                 Button(
                     onClick = {
                         val today = LocalDate.now().toString()
-                        scope.launch {
-                            db.measurements().insertAll(filled.map { (id, v) -> MeasurementEntry(typeId = id, date = today, cm = v.replace(',', '.').toDouble()) })
-                            runCatching { SheetsSync(context, db).syncSilently(context, HealthRepository(context)) }
-                            onClose()
+                        val app = context.applicationContext
+                        // Guarda y cierra al instante; la planilla se actualiza por detrás.
+                        AppScope.launch {
+                            val ok = runCatching {
+                                db.measurements().insertAll(filled.map { (id, cm) -> MeasurementEntry(typeId = id, date = today, cm = cm) })
+                            }
+                            snack.say(if (ok.isSuccess) "Medidas guardadas" else "No se pudieron guardar: ${ok.exceptionOrNull()?.message}")
+                            if (ok.isSuccess) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                runCatching { SheetsSync(app, db).syncSilently(app, HealthRepository(app)) }
+                            }
                         }
+                        onClose()
                     },
                     enabled = filled.isNotEmpty(),
                     colors = ButtonDefaults.buttonColors(containerColor = Accent, disabledContainerColor = Track),
