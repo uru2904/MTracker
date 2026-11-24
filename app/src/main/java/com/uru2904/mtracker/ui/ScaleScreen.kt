@@ -252,7 +252,8 @@ fun ScaleScreen(db: AppDatabase) {
                 val off = if (rangeDays == 0) 0f else offsetDays.coerceIn(0f, maxOffset)
                 val winTo = endOfToday - (off * dayMs).toLong()
                 val winFrom = if (rangeDays == 0) firstT ?: (endOfToday - 60 * dayMs) else winTo - rangeDays * dayMs
-                val showProj = false
+                // La proyección sale de todas las pesadas (ritmo de los últimos 20 días), no del período que se muestra.
+                val showProj = off < 0.5f && goalEnd != null && rate != null && trend.isNotEmpty()
                 val axisTo = if (showProj) goalEnd!!.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() else winTo
                 val ms = { d: LocalDate -> d.atTime(12, 0).atZone(zone).toInstant().toEpochMilli() }
                 val scale = weights90.filter { it.timestamp in winFrom..winTo }.map { it.timestamp to it.kg }
