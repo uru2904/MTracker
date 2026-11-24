@@ -231,6 +231,13 @@ fun HomeScreen(health: HealthRepository, db: AppDatabase, sharedUri: MutableStat
                     )
                 }
 
+                // ---- App recién instalada: ofrecer restaurar la copia de Drive ----
+                var empty by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) { empty = runCatching { com.uru2904.mtracker.backup.DriveBackup.isEmpty(context) }.getOrDefault(false) }
+                if (empty) DashCard("¿Reinstalaste la app?", { onNavigate(Tab.Ajustes) }) {
+                    Text("Si tenés una copia en tu Drive, restaurala desde Ajustes → Copia de seguridad.", color = Muted, fontSize = Type.Small)
+                }
+
                 // ---- Gym ----
                 val dateOf = { ms: Long -> Instant.ofEpochMilli(ms).atZone(zone).toLocalDate() }
                 val last7 = sessions.count { ChronoUnit.DAYS.between(dateOf(it.start), LocalDate.now()) in 0..6 }

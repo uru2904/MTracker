@@ -48,8 +48,22 @@ abstract class AppDatabase : RoomDatabase() {
                 .addCallback(Seed)
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
-                .also { instance = it }
+                .also { db ->
+                    instance = db
+                    // Cada cambio programa una copia en Drive unos minutos después.
+                    val app = context.applicationContext
+                    db.invalidationTracker.addObserver(object : androidx.room.InvalidationTracker.Observer(
+                        arrayOf("meal", "food", "workout", "workout_set", "weight", "measurement_type", "measurement", "goal_period", "day_status")
+                    ) {
+                        override fun onInvalidated(tables: Set<String>) {
+                            runCatching { com.uru2904.mtracker.backup.DriveBackup.onChange(app) }
+                        }
+                    })
+                }
         }
+
+        /** Cierra la base para reemplazar el archivo al restaurar una copia. */
+        fun closeForRestore() = synchronized(this) { instance?.close(); instance = null }
     }
 
     /** Datos iniciales: medidas por defecto y el periodo de Río. */

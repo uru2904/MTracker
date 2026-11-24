@@ -204,6 +204,7 @@ fun SettingsScreen(db: AppDatabase, onBack: () -> Unit) {
                     Item("Probar ahora", "", sub = "Manda el semáforo de hoy") { com.uru2904.mtracker.notify.DailyNotifier.runNow(ctx, test = true) }
                 }
             }
+            BackupSection()
             Section("Claude") {
                 var chat by remember { mutableStateOf(AppSettings.claudeChatUrl) }
                 Item("Chat para cargar comidas", if (chat == AppSettings.DEFAULT_CHAT) "El de siempre" else "Personalizado",
@@ -344,3 +345,108 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = AccentLight, unfocusedBorderColor = Muted,
     cursorColor = AccentLight, focusedSuffixColor = Soft, unfocusedSuffixColor = Soft,
 )
+
+/** Copia de seguridad en Drive: última copia, copiar ahora y restaurar. */
+@Composable
+private fun BackupSection() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snack = LocalSnack.current
+    var last by remember { mutableStateOf(com.uru2904.mtracker.backup.DriveBackup.lastBackup(ctx)) }
+    var err by remember { mutableStateOf(com.uru2904.mtracker.backup.DriveBackup.lastError(ctx)) }
+    var busy by remember { mutableStateOf<String?>(null) }
+    var list by remember { mutableStateOf<List<com.uru2904.mtracker.backup.BackupFile>?>(null) }
+    var confirm by remember { mutableStateOf<com.uru2904.mtracker.backup.BackupFile?>(null) }
+    var pending by remember { mutableStateOf<(suspend (String) -> Unit)?>(null) }
+    val sync = remember { com.uru2904.mtracker.sheets.SheetsSync(ctx, com.uru2904.mtracker.data.AppDatabase.get(ctx)) }
+    val fmt = java.time.format.DateTimeFormatter.ofPattern("EEE d/M HH:mm", java.util.Locale("es", "AR"))
+
+    val consent = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { res ->
+        val action = pending; pending = null
+        scope.launch {
+            val t = runCatching { sync.tokenFromConsent(res.data) }.getOrNull()
+            if (t != null && action != null) action(t) else { busy = null; snack.say("Google no dio permiso") }
+        }
+    }
+    /** Pide el token (con consentimiento si hace falta) y corre [action]. */
+    fun withToken(label: String, action: suspend (String) -> Unit) {
+        busy = label
+        scope.launch {
+            when (val st = runCatching { sync.authorize(ctx) }.getOrNull()) {
+                is com.uru2904.mtracker.sheets.AuthStep.Token -> action(st.token)
+                is com.uru2904.mtracker.sheets.AuthStep.NeedsConsent -> {
+                    pending = action
+                    consent.launch(androidx.activity.result.IntentSenderRequest.Builder(st.intent.intentSender).build())
+                }
+                null -> { busy = null; snack.say("No se pudo conectar con Google") }
+            }
+        }
+    }
+
+    Section("Copia de seguridad") {
+        val sub = when {
+            busy != null -> busy!!
+            err != null -> "Última vez falló: $err"
+            else -> "En tu Drive, carpeta \"${com.uru2904.mtracker.backup.DriveBackup.FOLDER}\". Se copia sola unos minutos después de cada cambio"
+        }
+        Item("Última copia", if (last == 0L) "Nunca" else java.time.Instant.ofEpochMilli(last).atZone(java.time.ZoneId.systemDefault()).format(fmt), sub = sub) {
+            if (busy != null) return@Item
+            withToken("Copiando…") { t ->
+                val e = com.uru2904.mtracker.backup.DriveBackup.backupNow(ctx, t)
+                last = com.uru2904.mtracker.backup.DriveBackup.lastBackup(ctx); err = e; busy = null
+                snack.say(if (e == null) "Copia guardada en tu Drive" else "No se pudo copiar: $e")
+            }
+        }
+        Item("Restaurar una copia", "", sub = "Reemplaza los datos del celular por los de una copia") {
+            if (busy != null) return@Item
+            withToken("Buscando copias…") { t ->
+                list = runCatching { com.uru2904.mtracker.backup.DriveBackup.list(ctx, t) }
+                    .onFailure { snack.say("No se pudieron leer las copias: ${it.message}") }.getOrNull()
+                busy = null
+            }
+        }
+    }
+
+    list?.let { files ->
+        AlertDialog(
+            onDismissRequest = { list = null },
+            containerColor = Card,
+            title = { Text("Elegí la copia", color = Color.White) },
+            text = {
+                if (files.isEmpty()) Text("Todavía no hay copias en tu Drive.", color = Muted)
+                else Column(Modifier.verticalScroll(rememberScrollState())) {
+                    files.forEach { f ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { confirm = f; list = null }.padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(f.created.atZone(java.time.ZoneId.systemDefault()).format(fmt), color = Color.White, fontSize = Type.Body, modifier = Modifier.weight(1f))
+                            Text("${f.size / 1024} KB", color = Muted, fontSize = Type.Small)
+                        }
+                        HorizontalDivider(color = Track, thickness = 1.dp)
+                    }
+                }
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { list = null }) { Text("Cerrar", color = AccentLight) } },
+        )
+    }
+
+    confirm?.let { f ->
+        ConfirmDialog(
+            title = "¿Restaurar la copia del ${f.created.atZone(java.time.ZoneId.systemDefault()).format(fmt)}?",
+            text = "Se reemplazan todos los datos del celular por los de esa copia y la app se reinicia. Antes guardo una copia de lo que tenés ahora, así podés volver atrás.",
+            confirmLabel = "Restaurar",
+            onConfirm = {
+                confirm = null
+                withToken("Restaurando…") { t ->
+                    val e = com.uru2904.mtracker.backup.DriveBackup.restore(ctx, f.id, t)
+                    if (e == null) com.uru2904.mtracker.backup.DriveBackup.restartApp(ctx)
+                    else { busy = null; snack.say("No se pudo restaurar: $e") }
+                }
+            },
+            onDismiss = { confirm = null },
+        )
+    }
+}
