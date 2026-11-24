@@ -27,6 +27,11 @@ object AppSettings {
         get() = prefs?.getFloat("loss", 0.4f)?.toDouble()?.let { Math.round(it * 100) / 100.0 } ?: 0.4
         set(v) = edit { putFloat("loss", v.toFloat()) }
 
+    /** Rango del gráfico de Cuerpo en días (0 = todo). */
+    var chartRangeDays: Int
+        get() = prefs?.getInt("chartRange", 60) ?: 60
+        set(v) = edit { putInt("chartRange", v) }
+
     var screenLimitMin: Long
         get() = prefs?.getLong("screenLimit", 180L) ?: 180L
         set(v) = edit { putLong("screenLimit", v) }

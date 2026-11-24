@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.uru2904.mtracker.data.MeasurementEntry
+import com.uru2904.mtracker.data.AppSettings
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
@@ -174,13 +175,15 @@ fun ScaleScreen(db: AppDatabase) {
     DisposableEffect(Unit) { onDispose { scanner.stop() } }
 
     // ---- Datos de la pantalla Cuerpo ----
-    val chartSince = remember { com.uru2904.mtracker.data.Live.daysAgo(365) }
+    val chartSince = 0L // todo el historial: el rango lo eligen los botones
     LaunchedEffect(Unit) { runCatching { com.uru2904.mtracker.sync.WeightImport.run(context, db, health) } }
     val weights90 by com.uru2904.mtracker.data.Live.weightsSince(db, chartSince).collectAsState()
     val types by com.uru2904.mtracker.data.Live.types(db).collectAsState()
     val measures by com.uru2904.mtracker.data.Live.measures(db).collectAsState()
     val goal by com.uru2904.mtracker.data.Live.goal(db, LocalDate.now().toString()).collectAsState()
     var selectedType by remember { mutableStateOf<Long?>(null) } // null = peso
+    var rangeDays by remember { mutableStateOf(AppSettings.chartRangeDays) }
+    var offsetDays by remember { mutableStateOf(0f) } // cuántos días hacia atrás se corrió la ventana
     var editing by remember { mutableStateOf<MeasurementEntry?>(null) }
     var addMeasures by remember { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
@@ -215,24 +218,64 @@ fun ScaleScreen(db: AppDatabase) {
 
             // ---- Gráfico: peso o la medida seleccionada ----
             val selType = types.firstOrNull { it.id == selectedType }
-            val points: List<Pair<Long, Double>> = if (selType == null) weights90.map { it.timestamp to it.kg }
+            val allPoints: List<Pair<Long, Double>> = if (selType == null) weights90.map { it.timestamp to it.kg }
                 else measures.filter { it.typeId == selType.id }.map {
                     LocalDate.parse(it.date).atStartOfDay(zone).toInstant().toEpochMilli() to it.cm
                 }
+            // Ventana visible: los últimos [rangeDays] días, corrida [offsetDays] hacia atrás.
+            val dayMs = 86_400_000L
+            val endOfToday = LocalDate.now().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val maxOffset = allPoints.firstOrNull()?.let { ((endOfToday - it.first) / dayMs - rangeDays).toFloat().coerceAtLeast(0f) } ?: 0f
+            val off = if (rangeDays == 0) 0f else offsetDays.coerceIn(0f, maxOffset)
+            val winTo = if (rangeDays == 0) allPoints.lastOrNull()?.first ?: endOfToday else endOfToday - (off * dayMs).toLong()
+            val winFrom = if (rangeDays == 0) allPoints.firstOrNull()?.first ?: (endOfToday - 60 * dayMs) else winTo - rangeDays * dayMs
+            val points = allPoints.filter { it.first in winFrom..winTo }
             Column(
                 Modifier.fillMaxWidth().background(Card, RoundedCornerShape(16.dp)).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(if (selType == null) "Peso" else selType.name, color = Muted, fontSize = Type.Small)
+                    if (off > 0.5f) Text("Volver a hoy", color = AccentLight, fontSize = Type.Small,
+                        modifier = Modifier.minimumInteractiveComponentSize().clickable { offsetDays = 0f }.padding(4.dp))
                 }
-                if (points.size < 2) Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                    Text(if (points.isEmpty()) "Sin datos todavía" else "Hace falta más de una medición para el gráfico", color = Muted, fontSize = Type.Small)
-                } else LineChart(points, if (selType == null) target else null, if (selType == null) "kg" else "cm")
-                if (points.size >= 2) Row(Modifier.fillMaxWidth().padding(start = 34.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    val f = DateTimeFormatter.ofPattern("d/M")
-                    Text(f.format(Instant.ofEpochMilli(points.first().first).atZone(zone)), color = Muted, fontSize = Type.Chart)
-                    Text(f.format(Instant.ofEpochMilli(points.last().first).atZone(zone)), color = Muted, fontSize = Type.Chart)
+                // Botones de rango
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(30 to "30 d", 60 to "60 d", 91 to "3 m", 182 to "6 m", 0 to "Todo").forEach { (d, label) ->
+                        val on = rangeDays == d
+                        Box(
+                            Modifier.background(if (on) Accent else Surface2, RoundedCornerShape(14.dp))
+                                .clickable { rangeDays = d; offsetDays = 0f; AppSettings.chartRangeDays = d }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        ) { Text(label, color = if (on) Color.White else Soft, fontSize = Type.Small) }
+                    }
+                }
+                // Deslizar horizontalmente mueve la ventana en el tiempo (no en "Todo").
+                Box(
+                    Modifier.fillMaxWidth().pointerInput(rangeDays, maxOffset) {
+                        if (rangeDays == 0) return@pointerInput
+                        detectHorizontalDragGestures { change, dx ->
+                            change.consume()
+                            val perPx = rangeDays / size.width.toFloat()
+                            offsetDays = (offsetDays + dx * perPx).coerceIn(0f, maxOffset)
+                        }
+                    }
+                ) {
+                    if (points.size < 2) Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            when {
+                                allPoints.isEmpty() -> "Sin datos todavía"
+                                allPoints.size == 1 -> "Hace falta más de una medición para el gráfico"
+                                else -> "Sin datos en este período. Deslizá para ver otros."
+                            }, color = Muted, fontSize = Type.Small,
+                        )
+                    } else Column { LineChart(points, if (selType == null) target else null, if (selType == null) "kg" else "cm", winFrom, winTo) }
+                }
+                Row(Modifier.fillMaxWidth().padding(start = 34.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    val f = DateTimeFormatter.ofPattern("d/M/yy")
+                    Text(f.format(Instant.ofEpochMilli(winFrom).atZone(zone)), color = Muted, fontSize = Type.Chart)
+                    if (rangeDays != 0 && maxOffset > 0f) Text("← deslizá para ver antes", color = Muted, fontSize = Type.Chart)
+                    Text(if (off < 0.5f && rangeDays != 0) "hoy" else f.format(Instant.ofEpochMilli(winTo - 1).atZone(zone)), color = Muted, fontSize = Type.Chart)
                 }
             }
 
@@ -404,16 +447,16 @@ fun ScaleScreen(db: AppDatabase) {
 
 
 /**
- * Línea con puntos, interactiva: tocar o arrastrar selecciona el punto más cercano
+ * Línea con puntos, interactiva: tocar selecciona el punto más cercano
  * (línea vertical + valor y fecha arriba). Por defecto, el último.
  */
 @Composable
-private fun LineChart(points: List<Pair<Long, Double>>, target: Double?, unit: String) {
+private fun LineChart(points: List<Pair<Long, Double>>, target: Double?, unit: String, from: Long? = null, to: Long? = null) {
     val values = points.map { it.second } + listOfNotNull(target)
     val lo = values.minOrNull()!!; val hi = values.maxOrNull()!!
     val pad = ((hi - lo) * 0.15).coerceAtLeast(0.5)
     val min = lo - pad; val max = hi + pad
-    val t0 = points.first().first; val t1 = points.last().first
+    val t0 = from ?: points.first().first; val t1 = to ?: points.last().first
     var sel by remember(points) { mutableStateOf(points.lastIndex) }
     val zone = ZoneId.systemDefault()
     val p = points[sel.coerceIn(0, points.lastIndex)]
@@ -444,16 +487,6 @@ private fun LineChart(points: List<Pair<Long, Double>>, target: Double?, unit: S
                         } ?: sel
                     }
                     detectTapGestures { pick(it.x) }
-                }
-                .pointerInput(points) {
-                    fun pick(x: Float) {
-                        val w = size.width.toFloat()
-                        sel = points.indices.minByOrNull { i ->
-                            val px = if (t1 == t0) w / 2 else ((points[i].first - t0).toFloat() / (t1 - t0)) * w
-                            kotlin.math.abs(px - x)
-                        } ?: sel
-                    }
-                    detectHorizontalDragGestures(onDragStart = { pick(it.x) }) { change, _ -> pick(change.position.x) }
                 }
         ) {
             fun x(t: Long) = if (t1 == t0) size.width / 2 else ((t - t0).toFloat() / (t1 - t0)) * size.width
