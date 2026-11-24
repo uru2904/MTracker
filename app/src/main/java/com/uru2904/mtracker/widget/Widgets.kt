@@ -38,7 +38,7 @@ data class WidgetData(
     val kcal: Double, val kcalT: Int, val prot: Double, val protT: Int,
     val carbs: Double, val carbsT: Int, val fat: Double, val fatT: Int,
     val nextRoutine: String, val gymDaysSince: Long?, val weekGym: List<Boolean>, val weekTarget: Int,
-    val goalName: String?, val daysLeft: Long?, val weight: Double?, val weightDelta: Double?, val targetWeight: Double?,
+    val goalName: String?, val daysLeft: Long?, val goalStart: LocalDate?, val goalEnd: LocalDate?, val weight: Double?, val weightDelta: Double?, val targetWeight: Double?,
     val topics: List<Topic>,
 )
 
@@ -90,6 +90,8 @@ object WidgetUpdater {
             gymDaysSince = sessions.lastOrNull()?.let { ChronoUnit.DAYS.between(dateOf(it.start), day).coerceAtLeast(0) },
             weekGym = (0..6).map { monday.plusDays(it.toLong()) in gymDates }, weekTarget = 3,
             goalName = goal?.name, daysLeft = goal?.endDate?.let { runCatching { ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(it)) }.getOrNull() },
+            goalStart = goal?.startDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+            goalEnd = goal?.endDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
             weight = weights.lastOrNull()?.kg, weightDelta = delta, targetWeight = goal?.targetWeightKg,
             topics = topics,
         )
@@ -127,8 +129,16 @@ object WidgetUpdater {
     }
     private fun topic(d: WidgetData, name: String) = d.topics.firstOrNull { it.name == name }
 
+    /** Dato corto debajo de cada tema del semáforo. */
+    private fun short(t: Topic, d: WidgetData): String = when (t.name) {
+        "Comida" -> "${n(d.kcal)} kcal"
+        "Gym" -> when (val s = d.gymDaysSince) { null -> "sin datos"; 0L -> "hoy"; 1L -> "ayer"; else -> "hace $s d" }
+        "Peso" -> t.value.replace(" días", " d").replace(" día", " d")
+        else -> t.value.substringBefore(" /")
+    }
+
     /** Anillo de progreso dibujado como imagen (los widgets no dibujan formas propias). */
-    private fun ring(fraction: Float, sizePx: Int = 240, stroke: Float = 26f): Bitmap {
+    private fun ring(fraction: Float, sizePx: Int = 320, stroke: Float = 28f): Bitmap {
         val b = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val cv = Canvas(b)
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = stroke; strokeCap = Paint.Cap.ROUND }
@@ -146,6 +156,10 @@ object WidgetUpdater {
         setProgressBar(R.id.kcal_bar, 100, pct(d.kcal, d.kcalT), false)
         setTextViewText(R.id.prot_value, "${n(d.prot)} / ${d.protT} g")
         setProgressBar(R.id.prot_bar, 100, pct(d.prot, d.protT), false)
+        setTextViewText(R.id.carbs_value, "${n(d.carbs)} / ${d.carbsT} g")
+        setProgressBar(R.id.carbs_bar, 100, pct(d.carbs, d.carbsT), false)
+        setTextViewText(R.id.fat_value, "${n(d.fat)} / ${d.fatT} g")
+        setProgressBar(R.id.fat_bar, 100, pct(d.fat, d.fatT), false)
         val info = listOfNotNull(
             topic(d, "Sueño")?.value?.takeIf { it != "sin datos" }?.let { "Sueño ${it.substringBefore(" /")}" },
             if ((d.gymDaysSince ?: 99) == 0L) "Gym: hoy" else "Gym: toca ${d.nextRoutine}",
@@ -159,7 +173,11 @@ object WidgetUpdater {
     private fun semaforo(c: Context, d: WidgetData) = RemoteViews(c.packageName, R.layout.widget_semaforo).apply {
         val dots = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4)
         val names = intArrayOf(R.id.name0, R.id.name1, R.id.name2, R.id.name3, R.id.name4)
-        d.topics.take(5).forEachIndexed { i, t -> setImageViewResource(dots[i], dotRes(t.light)); setTextViewText(names[i], t.name) }
+        val vals = intArrayOf(R.id.val0, R.id.val1, R.id.val2, R.id.val3, R.id.val4)
+        d.topics.take(5).forEachIndexed { i, t ->
+            setImageViewResource(dots[i], dotRes(t.light)); setTextViewText(names[i], t.name)
+            setTextViewText(vals[i], short(t, d))
+        }
         setOnClickPendingIntent(R.id.root, open(c, 20, "Hoy"))
     }
 
@@ -168,7 +186,9 @@ object WidgetUpdater {
         val left = d.kcalT - d.kcal
         setTextViewText(R.id.ring_value, n(kotlin.math.abs(left)))
         setTextViewText(R.id.ring_label, if (left >= 0) "kcal quedan" else "kcal de más")
-        setTextViewText(R.id.detail, "P ${n(d.prot)}/${d.protT} · C ${pct(d.carbs, d.carbsT)}% · G ${pct(d.fat, d.fatT)}%")
+        setTextViewText(R.id.prot, "${n(d.prot)}/${d.protT}")
+        setTextViewText(R.id.carbs, "${pct(d.carbs, d.carbsT)}%")
+        setTextViewText(R.id.fat, "${pct(d.fat, d.fatT)}%")
         setOnClickPendingIntent(R.id.root, open(c, 30, "Comidas"))
     }
 
@@ -189,6 +209,14 @@ object WidgetUpdater {
         setTextViewText(R.id.delta, when { dl == null -> ""; dl <= -0.05 -> "↓" + kg(-dl); dl >= 0.05 -> "↑" + kg(dl); else -> "=" })
         setTextColor(R.id.delta, if (dl != null && dl <= -0.05) 0xFF22C55E.toInt() else if (dl != null && dl >= 0.05) 0xFFF2C14E.toInt() else 0xFF8A8A8A.toInt())
         setTextViewText(R.id.target, d.targetWeight?.let { "meta ${kg(it)} kg" } ?: "")
+        val st = d.goalStart; val en = d.goalEnd
+        if (st != null && en != null && en.isAfter(st)) {
+            val total = ChronoUnit.DAYS.between(st, en).toDouble()
+            val done = ChronoUnit.DAYS.between(st, LocalDate.now()).coerceIn(0, total.toLong())
+            setProgressBar(R.id.period_bar, 100, (done / total * 100).toInt(), false)
+            val weeks = Math.ceil(total / 7).toInt()
+            setTextViewText(R.id.period, "Semana ${(done / 7 + 1).coerceAtMost(weeks.toLong())} de $weeks")
+        } else { setProgressBar(R.id.period_bar, 100, 0, false); setTextViewText(R.id.period, "") }
         setOnClickPendingIntent(R.id.root, open(c, 50, "Cuerpo"))
     }
 }
