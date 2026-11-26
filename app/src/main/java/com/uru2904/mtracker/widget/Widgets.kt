@@ -180,6 +180,12 @@ object WidgetUpdater {
             setTextViewText(vals[i], short(t, d))
         }
         setOnClickPendingIntent(R.id.root, open(c, 20, "Hoy"))
+        // Cada indicador abre su pantalla.
+        val cols = intArrayOf(R.id.col0, R.id.col1, R.id.col2, R.id.col3, R.id.col4)
+        d.topics.take(5).forEachIndexed { i, t ->
+            val tab = when (t.name) { "Comida" -> "Comidas"; "Gym" -> "Gym"; "Sueño" -> "Sueno"; "Peso" -> "Cuerpo"; "Pantalla" -> "Uso"; else -> "Hoy" }
+            setOnClickPendingIntent(cols[i], open(c, 21 + i, tab))
+        }
     }
 
     private fun macros(c: Context, d: WidgetData) = RemoteViews(c.packageName, R.layout.widget_macros).apply {
