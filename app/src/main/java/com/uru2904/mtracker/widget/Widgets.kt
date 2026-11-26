@@ -40,6 +40,8 @@ data class WidgetData(
     val nextRoutine: String, val gymDaysSince: Long?, val weekGym: List<Boolean>, val weekTarget: Int,
     val goalName: String?, val daysLeft: Long?, val goalStart: LocalDate?, val goalEnd: LocalDate?, val weight: Double?, val weightDelta: Double?, val targetWeight: Double?,
     val topics: List<Topic>,
+    /** Sueño de la última noche (con siestas), como lo muestra la pantalla Sueño. */
+    val lastSleepMin: Long?,
 )
 
 object WidgetUpdater {
@@ -81,6 +83,9 @@ object WidgetUpdater {
         val prev7 = weights.filter { it.timestamp in (now - 2 * day7)..(now - day7) }.map { it.kg }
         val delta = if (last7.isNotEmpty() && prev7.isNotEmpty()) last7.average() - prev7.average() else null
         val topics = runCatching { DailyNotifier.topics(c) }.getOrDefault(emptyList())
+        val lastSleep = runCatching {
+            kotlinx.coroutines.withTimeoutOrNull(20_000) { com.uru2904.mtracker.health.HealthRepository(c).sleepNights(2) }
+        }.getOrNull().orEmpty().filter { !it.date.isAfter(LocalDate.now()) }.firstOrNull()?.totalMin
         return WidgetData(
             kcal = meals.sumOf { it.kcal }, kcalT = goal?.kcalTarget ?: 2250,
             prot = meals.sumOf { it.protein }, protT = goal?.proteinTarget ?: 150,
@@ -93,7 +98,7 @@ object WidgetUpdater {
             goalStart = goal?.startDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
             goalEnd = goal?.endDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
             weight = weights.lastOrNull()?.kg, weightDelta = delta, targetWeight = goal?.targetWeightKg,
-            topics = topics,
+            topics = topics, lastSleepMin = lastSleep,
         )
     }
 
@@ -134,6 +139,7 @@ object WidgetUpdater {
         "Comida" -> "${n(d.prot)}/${d.protT} g"
         "Gym" -> when (val s = d.gymDaysSince) { null -> "sin datos"; 0L -> "hoy"; 1L -> "ayer"; else -> "hace $s d" }
         "Peso" -> t.value.replace(" días", " d").replace(" día", " d")
+        "Sueño" -> d.lastSleepMin?.let { DayLights.hm(it) } ?: "sin datos"
         else -> t.value.substringBefore(" /")
     }
 
@@ -161,7 +167,7 @@ object WidgetUpdater {
         setTextViewText(R.id.fat_value, "${n(d.fat)} / ${d.fatT} g")
         setProgressBar(R.id.fat_bar, 100, pct(d.fat, d.fatT), false)
         val info = listOfNotNull(
-            topic(d, "Sueño")?.value?.takeIf { it != "sin datos" }?.let { "Sueño ${it.substringBefore(" /")}" },
+            d.lastSleepMin?.let { "Sueño ${DayLights.hm(it)}" },
             if ((d.gymDaysSince ?: 99) == 0L) "Gym: hoy" else "Gym: toca ${d.nextRoutine}",
             topic(d, "Pantalla")?.value?.takeIf { it != "sin permiso" }?.let { "Pantalla ${it.substringBefore(" /")}" },
         )
